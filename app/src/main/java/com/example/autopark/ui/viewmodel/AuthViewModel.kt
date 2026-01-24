@@ -24,7 +24,14 @@ class AuthViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            loadCurrentUser()
+            authRepository.getAuthState().collect { isAuthenticated ->
+                if (isAuthenticated) {
+                    loadCurrentUser()
+                } else {
+                    _currentUser.value = null
+                    _uiState.value = AuthUiState.NotAuthenticated
+                }
+            }
         }
     }
 
@@ -73,8 +80,7 @@ class AuthViewModel @Inject constructor(
     fun logout() {
         viewModelScope.launch {
             authRepository.logout()
-            _currentUser.value = null
-            _uiState.value = AuthUiState.NotAuthenticated
+            // The AuthStateListener in init will handle state updates
         }
     }
 
