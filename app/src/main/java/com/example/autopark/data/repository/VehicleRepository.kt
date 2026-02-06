@@ -1,0 +1,95 @@
+package com.example.autopark.data.repository
+
+import com.example.autopark.data.model.Vehicle
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+
+class VehicleRepository @Inject constructor(
+    private val db: FirebaseFirestore
+) {
+    suspend fun addVehicle(vehicle: Vehicle): Result<String> {
+        return try {
+            val docRef = db.collection("vehicles").add(vehicle).await()
+            Result.success(docRef.id)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateVehicle(vehicle: Vehicle): Result<Unit> {
+        return try {
+            db.collection("vehicles").document(vehicle.id).set(vehicle).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteVehicle(vehicleId: String): Result<Unit> {
+        return try {
+            db.collection("vehicles").document(vehicleId).delete().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getVehicle(vehicleId: String): Result<Vehicle> {
+        return try {
+            val doc = db.collection("vehicles").document(vehicleId).get().await()
+            val vehicle = doc.toObject(Vehicle::class.java)
+            if (vehicle != null) {
+                Result.success(vehicle.copy(id = doc.id))
+            } else {
+                Result.failure(Exception("Vehicle not found"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getOwnerVehicles(ownerId: String): Result<List<Vehicle>> {
+        return try {
+            val docs = db.collection("vehicles")
+                .whereEqualTo("ownerId", ownerId)
+                .get()
+                .await()
+            val vehicles = docs.documents.mapNotNull { doc ->
+                doc.toObject(Vehicle::class.java)?.copy(id = doc.id)
+            }
+            Result.success(vehicles)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    fun getOwnerVehiclesFlow(ownerId: String): Flow<List<Vehicle>> = flow {
+        try {
+            val docs = db.collection("vehicles")
+                .whereEqualTo("ownerId", ownerId)
+                .get()
+                .await()
+            val vehicles = docs.documents.mapNotNull { doc ->
+                doc.toObject(Vehicle::class.java)?.copy(id = doc.id)
+            }
+            emit(vehicles)
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+
+    suspend fun getAllVehicles(): Result<List<Vehicle>> {
+        return try {
+            val docs = db.collection("vehicles").get().await()
+            val vehicles = docs.documents.mapNotNull { doc ->
+                doc.toObject(Vehicle::class.java)?.copy(id = doc.id)
+            }
+            Result.success(vehicles)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}

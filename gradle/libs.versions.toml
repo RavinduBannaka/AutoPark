@@ -16,6 +16,16 @@ coroutines = "1.8.0"
 hilt = "2.51.1"
 hiltNavigationCompose = "1.2.0"
 ksp = "2.0.21-1.0.25"
+mlKitBarcode = "17.0.0"
+playServicesLocation = "21.2.0"
+playServicesMaps = "18.2.0"
+mapsCompose = "4.0.0"
+mapsComposeUtls = "4.0.0"
+zxingCore = "3.5.1"
+zxingAndroid = "3.6.0"
+accompanistPermissions = "0.35.0-alpha"
+accompanistCoil = "0.35.0-alpha"
+coil = "2.6.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -46,6 +56,23 @@ firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+
+# QR Scanning & Generation
+mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlKitBarcode" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
+zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingAndroid" }
+
+# Google Maps
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
+maps-compose-utils = { group = "com.google.maps.android", name = "maps-compose-utils", version.ref = "mapsComposeUtls" }
+
+# Accompanist
+accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanistPermissions" }
+
+# Image loading
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

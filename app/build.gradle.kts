@@ -74,6 +74,25 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.analytics)
 
+    // QR Code Scanning and Generation
+    implementation(libs.mlkit.barcode.scanning)
+    implementation(libs.zxing.core)
+    implementation(libs.zxing.android.embedded) {
+        exclude(group = "com.android.support")
+    }
+
+    // Google Maps
+    implementation(libs.play.services.location)
+    implementation(libs.play.services.maps)
+    implementation(libs.maps.compose)
+    implementation(libs.maps.compose.utils)
+
+    // Permissions
+    implementation(libs.accompanist.permissions)
+
+    // Image Loading
+    implementation(libs.coil.compose)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
