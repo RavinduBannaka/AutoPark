@@ -81,6 +81,12 @@ dependencies {
         exclude(group = "com.android.support")
     }
 
+    // CameraX
+    implementation(libs.camera.core)
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+
     // Google Maps
     implementation(libs.play.services.location)
     implementation(libs.play.services.maps)
@@ -92,6 +98,9 @@ dependencies {
 
     // Image Loading
     implementation(libs.coil.compose)
+
+    // Gson for JSON
+    implementation(libs.gson)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

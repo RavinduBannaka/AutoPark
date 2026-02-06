@@ -1,54 +1,73 @@
 package com.example.autopark.ui.screens.admin
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CheckCircle
+//import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.autopark.data.model.ParkingTransaction
+import com.example.autopark.ui.viewmodel.ParkingTransactionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QRScannerScreen(
-    navController: NavController
+    navController: NavController,
+    viewModel: ParkingTransactionViewModel = hiltViewModel()
 ) {
-    var scannedText by remember { mutableStateOf<String?>(null) }
-    var isScanning by remember { mutableStateOf(false) }
-
+    val context = LocalContext.current
+    
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    
+    var vehicleNumber by remember { mutableStateOf("") }
+    var showResult by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
+    var transactionResult by remember { mutableStateOf<Result<ParkingTransaction>?>(null) }
+    
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+    }
+    
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+    
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("QR Code Scanner") },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             )
         }
@@ -58,40 +77,235 @@ fun QRScannerScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (isScanning) {
-                CircularProgressIndicator()
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Scanning QR Code...")
-            } else if (scannedText != null) {
-                Text("Scanned Data:", style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(scannedText!!, style = MaterialTheme.typography.bodyLarge)
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(onClick = { scannedText = null }) {
-                    Text("Scan Another")
+            if (hasCameraPermission) {
+                // Camera Placeholder
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .padding(bottom = 24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+//                                imageVector = Icons.Default.QrCode2,
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(80.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Camera Preview",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "(ML Kit Camera Integration Required)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
-            } else {
-                Text(
-                    "Point camera at QR code",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(bottom = 24.dp)
-                )
-                Button(
-                    onClick = { isScanning = true },
+
+                // Manual Entry Section
+                Card(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Start Scanning")
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Manual Entry",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = "Enter vehicle number to simulate QR scan:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        OutlinedTextField(
+                            value = vehicleNumber,
+                            onValueChange = { vehicleNumber = it.uppercase() },
+                            label = { Text("Vehicle Number") },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("e.g., ABC123") }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    if (vehicleNumber.isNotBlank()) {
+                                        isProcessing = true
+                                        viewModel.processVehicleEntry(vehicleNumber) { result ->
+                                            transactionResult = result
+                                            showResult = true
+                                            isProcessing = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = vehicleNumber.isNotBlank() && !isProcessing
+                            ) {
+                                Text("Process Entry")
+                            }
+                            
+                            Button(
+                                onClick = {
+                                    if (vehicleNumber.isNotBlank()) {
+                                        isProcessing = true
+                                        viewModel.processVehicleExit(vehicleNumber) { result ->
+                                            transactionResult = result
+                                            showResult = true
+                                            isProcessing = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = vehicleNumber.isNotBlank() && !isProcessing
+                            ) {
+                                Text("Process Exit")
+                            }
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "Note: Implement ML Kit Barcode Scanning library for actual QR code scanning functionality.",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 24.dp)
-                )
+                
+                // Instructions
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Instructions:",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "1. Enter a vehicle number above\n2. Click 'Process Entry' for vehicle entry\n3. Click 'Process Exit' for vehicle exit\n4. Charges are calculated automatically",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            } else {
+                // Permission Denied UI
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+//                        imageVector = Icons.Default.QrCode2,
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Camera permission required",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Please grant camera permission to scan QR codes",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = {
+                        permissionLauncher.launch(Manifest.permission.CAMERA)
+                    }) {
+                        Text("Grant Permission")
+                    }
+                }
             }
         }
     }
+    
+    // Result Dialog
+    if (showResult) {
+        ScanResultDialog(
+            result = transactionResult,
+            onDismiss = { 
+                showResult = false
+                transactionResult = null
+            }
+        )
+    }
+}
+
+@Composable
+fun ScanResultDialog(
+    result: Result<ParkingTransaction>?,
+    onDismiss: () -> Unit
+) {
+    val transaction = result?.getOrNull()
+    val error = result?.exceptionOrNull()
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (transaction != null) "Scan Successful" else "Scan Failed",
+                color = if (transaction != null) MaterialTheme.colorScheme.primary 
+                       else MaterialTheme.colorScheme.error
+            )
+        },
+        text = {
+            Column {
+                if (transaction != null) {
+                    Text("Vehicle: ${transaction.vehicleNumber}")
+                    Text("Status: ${transaction.status}")
+                    Text("Entry Time: ${formatTimestamp(transaction.entryTime)}")
+                    if (transaction.exitTime != null) {
+                        Text("Exit Time: ${formatTimestamp(transaction.exitTime!!)}")
+                        Text("Duration: ${transaction.duration} minutes")
+                        Text("Charge: $${transaction.chargeAmount}")
+                    }
+                } else {
+                    Text(error?.message ?: "Unknown error occurred")
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("OK")
+            }
+        }
+    )
+}
+
+private fun formatTimestamp(timestamp: Long): String {
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+    return sdf.format(java.util.Date(timestamp))
 }

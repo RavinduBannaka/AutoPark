@@ -1,57 +1,105 @@
 package com.example.autopark.ui.screens.dashboard
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+//import androidx.compose.material.icons.automirrored.filled.Logout
+//import androidx.compose.material.icons.filled.DirectionsCar
+//import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Person
+//import androidx.compose.material.icons.filled.QrCode
+//import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.example.autopark.data.model.ParkingSpot
-import com.example.autopark.ui.viewmodel.ParkingViewModel
+import com.example.autopark.ui.viewmodel.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DriverDashboardScreen(
     navController: NavController,
-    viewModel: ParkingViewModel = hiltViewModel()
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
-    val parkingSpots by viewModel.parkingSpots.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    var vehicleNumber by remember { mutableStateOf("") }
+    val currentUser by authViewModel.currentUser.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) {
-        viewModel.loadParkingSpots()
-    }
+    val dashboardItems = listOf(
+        DashboardItem(
+            title = "My Profile",
+            icon = Icons.Default.Person,
+            description = "View and edit your profile",
+            route = "driver_profile"
+        ),
+        DashboardItem(
+            title = "My Vehicles",
+            icon = Icons.Default.ArrowDropDown,
+            description = "View registered vehicles",
+            route = "driver_vehicles"
+        ),
+        DashboardItem(
+            title = "Parking QR Code",
+            icon = Icons.Default.ArrowDropDown,
+            description = "Display your parking QR code",
+            route = "driver_qr_display"
+        ),
+        DashboardItem(
+            title = "Parking History",
+            icon = Icons.Default.ArrowDropDown,
+            description = "View your parking history",
+            route = "driver_parking_history"
+        ),
+        DashboardItem(
+            title = "Invoices",
+            icon = Icons.Default.ArrowDropDown,
+            description = "View monthly invoices",
+            route = "driver_invoices"
+        ),
+        DashboardItem(
+            title = "Overdue Charges",
+            icon = Icons.Default.Warning,
+            description = "View overdue charges",
+            route = "driver_overdue_charges"
+        ),
+        DashboardItem(
+            title = "Parking Locations",
+            icon = Icons.Default.LocationOn,
+            description = "View parking lots on map",
+            route = "driver_parking_lots_map"
+        ),
+        DashboardItem(
+            title = "Logout",
+            icon = Icons.AutoMirrored.Filled.ArrowForward,
+            description = "Sign out of the application",
+            route = "logout"
+        )
+    )
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Driver Dashboard") },
+                title = { 
+                    Column {
+                        Text("Vehicle Owner Dashboard")
+                        Text(
+                            text = "Welcome, ${currentUser?.name ?: "Driver"}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.primary
@@ -65,89 +113,127 @@ fun DriverDashboardScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Available Parking Spots",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-
-            OutlinedTextField(
-                value = vehicleNumber,
-                onValueChange = { vehicleNumber = it },
-                label = { Text("Your Vehicle Number") },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("e.g., ABC123") }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-            } else {
-                val availableSpots = parkingSpots.filter { !it.isOccupied }
-
-                if (availableSpots.isEmpty()) {
-                    Text(
-                        text = "No available parking spots",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
+            // VIP Status Card
+            if (currentUser?.isVIP == true) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
                     )
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        items(availableSpots) { spot ->
-                            ParkingSpotCard(spot = spot, isAdmin = false) {
-                                if (vehicleNumber.isNotBlank()) {
-                                    viewModel.occupyParkingSpot(spot.id, vehicleNumber)
-                                }
-                            }
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "VIP",
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = "VIP Member",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                text = "Enjoy exclusive parking benefits and discounts",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Your Parking Portal",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            
+            Text(
+                text = "Access your parking information and services",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
 
-            Button(
-                onClick = { viewModel.logout() },
-                modifier = Modifier.fillMaxWidth()
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize()
             ) {
-                Text("Logout")
+                items(dashboardItems) { item ->
+                    DriverDashboardCard(
+                        item = item,
+                        onClick = {
+                            if (item.route == "logout") {
+                                authViewModel.logout()
+                            } else {
+                                navController.navigate(item.route)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DriverParkingSpotCard(
-    spot: ParkingSpot,
-    vehicleNumber: String,
-    onPark: () -> Unit
+fun DriverDashboardCard(
+    item: DashboardItem,
+    onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth()
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = "Spot ${spot.spotNumber}",
-                style = MaterialTheme.typography.titleLarge
+            Icon(
+                imageVector = item.icon,
+                contentDescription = item.title,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.primary
             )
-
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
             Text(
-                text = "Floor: ${spot.floor}",
-                style = MaterialTheme.typography.bodyMedium
+                text = item.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-
-            Button(
-                onClick = onPark,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = vehicleNumber.isNotBlank()
-            ) {
-                Text("Park Here")
-            }
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            Text(
+                text = item.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }

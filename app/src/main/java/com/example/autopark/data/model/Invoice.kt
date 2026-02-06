@@ -18,6 +18,7 @@ data class Invoice(
     val totalAmount: Double = 0.0,
     val paymentStatus: String = "", // PENDING, PAID, PARTIAL
     val paymentDate: Long? = null,
+    val dueDate: Long = 0,
     val amountPaid: Double = 0.0,
     val transactionIds: List<String> = emptyList(),
     @ServerTimestamp

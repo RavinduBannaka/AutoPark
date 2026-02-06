@@ -1,56 +1,118 @@
 package com.example.autopark.ui.screens.dashboard
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+//import androidx.compose.material.icons.automirrored.filled.Logout
+//import androidx.compose.material.icons.filled.Assessment
+//import androidx.compose.material.icons.filled.AttachMoney
+//import androidx.compose.material.icons.filled.DirectionsCar
+//import androidx.compose.material.icons.filled.LocalParking
+import androidx.compose.material.icons.filled.Person
+//import androidx.compose.material.icons.filled.QrCode2
+//import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.example.autopark.data.model.ParkingSpot
-import com.example.autopark.ui.viewmodel.ParkingViewModel
+import com.example.autopark.ui.viewmodel.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminDashboardScreen(
     navController: NavController,
-    viewModel: ParkingViewModel = hiltViewModel()
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
-    val parkingSpots by viewModel.parkingSpots.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val currentUser by authViewModel.currentUser.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) {
-        viewModel.loadParkingSpots()
-    }
+    val dashboardItems = listOf(
+        DashboardItem(
+            title = "Manage Vehicle Owners",
+            icon = Icons.Default.Person,
+            description = "Register and manage vehicle owners",
+            route = "admin_manage_owners"
+        ),
+        DashboardItem(
+            title = "Manage Vehicles",
+//            icon = Icons.Default.DirectionsCar,
+            icon = Icons.Default.ArrowDropDown,
+            description = "Register and manage vehicle details",
+            route = "admin_manage_vehicles"
+        ),
+        DashboardItem(
+            title = "Parking Lots",
+//            icon = Icons.Default.LocalParking,
+            icon = Icons.Default.ArrowDropDown,
+            description = "Create and manage parking lots",
+            route = "admin_manage_lots"
+        ),
+        DashboardItem(
+            title = "Parking Rates",
+//            icon = Icons.Default.AttachMoney,
+            icon = Icons.Default.ArrowDropDown,
+            description = "Define parking rates",
+            route = "admin_manage_rates"
+        ),
+        DashboardItem(
+            title = "QR Scanner",
+//            icon = Icons.Default.QrCode2,
+            icon = Icons.Default.ArrowDropDown,
+            description = "Scan QR codes for entry/exit",
+            route = "admin_qr_scanner"
+        ),
+        DashboardItem(
+            title = "Reports",
+//            icon = Icons.Default.Assessment,
+            icon = Icons.Default.ArrowDropDown,
+            description = "Generate monthly reports",
+            route = "admin_reports"
+        ),
+        DashboardItem(
+            title = "Overdue Charges",
+            icon = Icons.Default.Warning,
+            description = "Manage overdue charges",
+            route = "admin_overdue_charges"
+        ),
+        DashboardItem(
+            title = "Data Import/Export",
+//            icon = Icons.Default.SwapHoriz,
+            icon = Icons.Default.ArrowDropDown,
+            description = "Import and export data",
+            route = "admin_data_import_export"
+        ),
+        DashboardItem(
+            title = "Logout",
+//            icon = Icons.AutoMirrored.Filled.Logout,
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            description = "Sign out of the application",
+            route = "logout"
+        )
+    )
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Admin Dashboard") },
+                title = { 
+                    Column {
+                        Text("Admin Dashboard")
+                        Text(
+                            text = "Welcome, ${currentUser?.name ?: "Admin"}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.primary
@@ -65,86 +127,93 @@ fun AdminDashboardScreen(
                 .padding(16.dp)
         ) {
             Text(
-                text = "Parking Spots Management",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 16.dp)
+                text = "Parking Management System",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
-
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(parkingSpots) { spot ->
-                        ParkingSpotCard(spot = spot, isAdmin = true) {
-                            // Toggle occupancy
-                            viewModel.toggleParkingSpot(spot.id, !spot.isOccupied)
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = { viewModel.logout() },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Logout")
-            }
-        }
-    }
-}
-
-@Composable
-fun ParkingSpotCard(
-    spot: ParkingSpot,
-    isAdmin: Boolean = false,
-    onToggleOccupancy: () -> Unit = {}
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+            
             Text(
-                text = "Spot ${spot.spotNumber}",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Text(
-                text = "Floor: ${spot.floor}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Text(
-                text = if (spot.isOccupied) "Status: Occupied" else "Status: Available",
+                text = "Select an option to manage the parking facility",
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (spot.isOccupied) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 24.dp)
             )
 
-            if (spot.isOccupied) {
-                spot.vehicleNumber?.let {
-                    Text(
-                        text = "Vehicle: $it",
-                        style = MaterialTheme.typography.bodySmall
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(dashboardItems) { item ->
+                    DashboardCard(
+                        item = item,
+                        onClick = {
+                            if (item.route == "logout") {
+                                authViewModel.logout()
+                            } else {
+                                navController.navigate(item.route)
+                            }
+                        }
                     )
                 }
             }
-
-            if (isAdmin) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = onToggleOccupancy,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (spot.isOccupied) "Mark as Available" else "Mark as Occupied")
-                }
-            }
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DashboardCard(
+    item: DashboardItem,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = item.icon,
+                contentDescription = item.title,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            Text(
+                text = item.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+data class DashboardItem(
+    val title: String,
+    val icon: ImageVector,
+    val description: String,
+    val route: String
+)

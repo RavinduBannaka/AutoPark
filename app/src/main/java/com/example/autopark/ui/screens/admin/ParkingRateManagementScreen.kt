@@ -12,8 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
@@ -50,7 +50,7 @@ import com.example.autopark.util.CurrencyFormatter
 @Composable
 fun ParkingRateManagementScreen(
     navController: NavController,
-    parkingLotId: String,
+    parkingLotId: String? = null,
     viewModel: ParkingRateViewModel = hiltViewModel()
 ) {
     val rates by viewModel.ratesForLot.collectAsStateWithLifecycle()
@@ -61,7 +61,7 @@ fun ParkingRateManagementScreen(
     var selectedRate by remember { mutableStateOf<ParkingRate?>(null) }
 
     LaunchedEffect(parkingLotId) {
-        viewModel.loadRatesForLot(parkingLotId)
+        parkingLotId?.let { viewModel.loadRatesForLot(it) }
     }
 
     Scaffold(
@@ -70,7 +70,7 @@ fun ParkingRateManagementScreen(
                 title = { Text("Parking Rates") },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -190,7 +190,7 @@ fun ParkingRateCard(
 @Composable
 fun ParkingRateDialog(
     rate: ParkingRate?,
-    parkingLotId: String,
+    parkingLotId: String?,
     onDismiss: () -> Unit,
     onConfirm: (ParkingRate) -> Unit
 ) {
@@ -276,8 +276,10 @@ fun ParkingRateDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    val lotId = parkingLotId ?: rate?.parkingLotId ?: "default"
                     onConfirm(
-                        (rate ?: ParkingRate(parkingLotId = parkingLotId)).copy(
+                        (rate ?: ParkingRate(parkingLotId = lotId)).copy(
+                            parkingLotId = lotId,
                             rateType = rateType,
                             pricePerHour = pricePerHour.toDoubleOrNull() ?: 0.0,
                             pricePerDay = pricePerDay.toDoubleOrNull() ?: 0.0,
