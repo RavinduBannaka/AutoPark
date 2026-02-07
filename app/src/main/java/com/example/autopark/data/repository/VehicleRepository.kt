@@ -34,7 +34,18 @@ class VehicleRepository @Inject constructor(
 
     suspend fun updateVehicle(vehicle: Vehicle): Result<Unit> {
         return try {
-            db.collection("vehicles").document(vehicle.id).set(vehicle).await()
+            val vehicleMap = hashMapOf(
+                "ownerId" to vehicle.ownerId,
+                "vehicleNumber" to vehicle.vehicleNumber,
+                "vehicleType" to vehicle.vehicleType,
+                "color" to vehicle.color,
+                "brand" to vehicle.brand,
+                "model" to vehicle.model,
+                "parkingLicenseValid" to vehicle.parkingLicenseValid,
+                "registrationExpiry" to vehicle.registrationExpiry,
+                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+            db.collection("vehicles").document(vehicle.id).update(vehicleMap as Map<String, Any>).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -55,7 +66,8 @@ class VehicleRepository @Inject constructor(
             val doc = db.collection("vehicles").document(vehicleId).get().await()
             val vehicle = doc.toObject(Vehicle::class.java)
             if (vehicle != null) {
-                Result.success(vehicle.copy(id = doc.id))
+                vehicle.id = doc.id
+                Result.success(vehicle)
             } else {
                 Result.failure(Exception("Vehicle not found"))
             }
@@ -71,7 +83,7 @@ class VehicleRepository @Inject constructor(
                 .get()
                 .await()
             val vehicles = docs.documents.mapNotNull { doc ->
-                doc.toObject(Vehicle::class.java)?.copy(id = doc.id)
+                doc.toObject(Vehicle::class.java)?.apply { id = doc.id }
             }
             Result.success(vehicles)
         } catch (e: Exception) {
@@ -86,7 +98,7 @@ class VehicleRepository @Inject constructor(
                 .get()
                 .await()
             val vehicles = docs.documents.mapNotNull { doc ->
-                doc.toObject(Vehicle::class.java)?.copy(id = doc.id)
+                doc.toObject(Vehicle::class.java)?.apply { id = doc.id }
             }
             emit(vehicles)
         } catch (e: Exception) {
@@ -98,7 +110,7 @@ class VehicleRepository @Inject constructor(
         return try {
             val docs = db.collection("vehicles").get().await()
             val vehicles = docs.documents.mapNotNull { doc ->
-                doc.toObject(Vehicle::class.java)?.copy(id = doc.id)
+                doc.toObject(Vehicle::class.java)?.apply { id = doc.id }
             }
             Result.success(vehicles)
         } catch (e: Exception) {

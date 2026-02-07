@@ -10,7 +10,27 @@ class OverdueChargeRepository @Inject constructor(
 ) {
     suspend fun addOverdueCharge(charge: OverdueCharge): Result<String> {
         return try {
-            val docRef = db.collection("overdue_charges").add(charge).await()
+            val chargeMap = hashMapOf(
+                "ownerId" to charge.ownerId,
+                "ownerName" to charge.ownerName,
+                "invoiceId" to charge.invoiceId,
+                "invoiceNumber" to charge.invoiceNumber,
+                "originalAmount" to charge.originalAmount,
+                "lateFeePercentage" to charge.lateFeePercentage,
+                "lateFeeAmount" to charge.lateFeeAmount,
+                "totalAmount" to charge.totalAmount,
+                "totalDueAmount" to charge.totalDueAmount,
+                "overdueDays" to charge.overdueDays,
+                "daysOverdue" to charge.daysOverdue,
+                "dueDate" to charge.dueDate,
+                "status" to charge.status,
+                "paymentStatus" to charge.paymentStatus,
+                "paymentDate" to charge.paymentDate,
+                "amountPaid" to charge.amountPaid,
+                "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+            val docRef = db.collection("overdue_charges").add(chargeMap).await()
             Result.success(docRef.id)
         } catch (e: Exception) {
             Result.failure(e)
@@ -19,7 +39,26 @@ class OverdueChargeRepository @Inject constructor(
 
     suspend fun updateOverdueCharge(charge: OverdueCharge): Result<Unit> {
         return try {
-            db.collection("overdue_charges").document(charge.id).set(charge).await()
+            val chargeMap = hashMapOf(
+                "ownerId" to charge.ownerId,
+                "ownerName" to charge.ownerName,
+                "invoiceId" to charge.invoiceId,
+                "invoiceNumber" to charge.invoiceNumber,
+                "originalAmount" to charge.originalAmount,
+                "lateFeePercentage" to charge.lateFeePercentage,
+                "lateFeeAmount" to charge.lateFeeAmount,
+                "totalAmount" to charge.totalAmount,
+                "totalDueAmount" to charge.totalDueAmount,
+                "overdueDays" to charge.overdueDays,
+                "daysOverdue" to charge.daysOverdue,
+                "dueDate" to charge.dueDate,
+                "status" to charge.status,
+                "paymentStatus" to charge.paymentStatus,
+                "paymentDate" to charge.paymentDate,
+                "amountPaid" to charge.amountPaid,
+                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+            db.collection("overdue_charges").document(charge.id).update(chargeMap as Map<String, Any>).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -31,7 +70,8 @@ class OverdueChargeRepository @Inject constructor(
             val doc = db.collection("overdue_charges").document(chargeId).get().await()
             val charge = doc.toObject(OverdueCharge::class.java)
             if (charge != null) {
-                Result.success(charge.copy(id = doc.id))
+                charge.id = doc.id
+                Result.success(charge)
             } else {
                 Result.failure(Exception("Overdue charge not found"))
             }
@@ -47,7 +87,7 @@ class OverdueChargeRepository @Inject constructor(
                 .get()
                 .await()
             val charges = docs.documents.mapNotNull { doc ->
-                doc.toObject(OverdueCharge::class.java)?.copy(id = doc.id)
+                doc.toObject(OverdueCharge::class.java)?.apply { id = doc.id }
             }
             Result.success(charges)
         } catch (e: Exception) {
@@ -63,7 +103,7 @@ class OverdueChargeRepository @Inject constructor(
                 .get()
                 .await()
             val charges = docs.documents.mapNotNull { doc ->
-                doc.toObject(OverdueCharge::class.java)?.copy(id = doc.id)
+                doc.toObject(OverdueCharge::class.java)?.apply { id = doc.id }
             }
             Result.success(charges)
         } catch (e: Exception) {
@@ -78,7 +118,7 @@ class OverdueChargeRepository @Inject constructor(
                 .get()
                 .await()
             val charges = docs.documents.mapNotNull { doc ->
-                doc.toObject(OverdueCharge::class.java)?.copy(id = doc.id)
+                doc.toObject(OverdueCharge::class.java)?.apply { id = doc.id }
             }
             Result.success(charges)
         } catch (e: Exception) {
@@ -90,7 +130,7 @@ class OverdueChargeRepository @Inject constructor(
         return try {
             val docs = db.collection("overdue_charges").get().await()
             val charges = docs.documents.mapNotNull { doc ->
-                doc.toObject(OverdueCharge::class.java)?.copy(id = doc.id)
+                doc.toObject(OverdueCharge::class.java)?.apply { id = doc.id }
             }
             Result.success(charges)
         } catch (e: Exception) {

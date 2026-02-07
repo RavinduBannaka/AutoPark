@@ -42,7 +42,7 @@ class UserManagementViewModel @Inject constructor(
                     .await()
                 
                 val users = docs.documents.mapNotNull { doc ->
-                    doc.toObject(User::class.java)?.copy(id = doc.id)
+                    doc.toObject(User::class.java)?.apply { id = doc.id }
                 }
                 
                 _drivers.value = users

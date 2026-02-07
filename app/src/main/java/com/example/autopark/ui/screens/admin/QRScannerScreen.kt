@@ -78,13 +78,14 @@ fun QRScannerScreen(
             isScanning = false
             // Parse QR code format: "vehicleNumber|vehicleId"
             val parts = code.split("|")
-            val extractedVehicleNumber = parts.firstOrNull() ?: code
+            val extractedVehicleNumber = parts.getOrNull(0) ?: code
+            val extractedVehicleId = parts.getOrNull(1) ?: code
             vehicleNumber = extractedVehicleNumber
             
             // Auto-process as entry if scanning
-            if (extractedVehicleNumber.isNotBlank()) {
+            if (extractedVehicleId.isNotBlank()) {
                 isProcessing = true
-                viewModel.processVehicleEntry(extractedVehicleNumber) { result ->
+                viewModel.processVehicleEntry(extractedVehicleId, extractedVehicleNumber) { result ->
                     transactionResult = result
                     showResult = true
                     isProcessing = false
@@ -221,7 +222,7 @@ fun QRScannerScreen(
                                 onClick = {
                                     if (vehicleNumber.isNotBlank()) {
                                         isProcessing = true
-                                        viewModel.processVehicleEntry(vehicleNumber) { result ->
+                                        viewModel.processVehicleEntryByNumber(vehicleNumber) { result ->
                                             transactionResult = result
                                             showResult = true
                                             isProcessing = false
@@ -238,7 +239,7 @@ fun QRScannerScreen(
                                 onClick = {
                                     if (vehicleNumber.isNotBlank()) {
                                         isProcessing = true
-                                        viewModel.processVehicleExit(vehicleNumber) { result ->
+                                        viewModel.processVehicleExitByNumber(vehicleNumber) { result ->
                                             transactionResult = result
                                             showResult = true
                                             isProcessing = false

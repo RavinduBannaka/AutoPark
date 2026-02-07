@@ -1,10 +1,12 @@
 package com.example.autopark.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.autopark.data.model.ParkingTransaction
 import com.example.autopark.data.repository.AuthRepository
 import com.example.autopark.data.repository.ParkingTransactionRepository
+import com.example.autopark.data.repository.VehicleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +17,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ParkingTransactionViewModel @Inject constructor(
     private val transactionRepository: ParkingTransactionRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val vehicleRepository: VehicleRepository
 ) : ViewModel() {
 
     private val _transactions = MutableStateFlow<List<ParkingTransaction>>(emptyList())
@@ -124,25 +127,32 @@ class ParkingTransactionViewModel @Inject constructor(
 
     fun processVehicleEntry(
         vehicleId: String,
+        vehicleNumber: String,
         parkingLotId: String = "default_lot",
         callback: (Result<ParkingTransaction>) -> Unit
     ) {
         viewModelScope.launch {
             try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                
                 // First check if vehicle already has active parking
                 val activeResult = transactionRepository.getActiveParkingByVehicle(vehicleId)
                 activeResult.getOrNull()?.let { activeTransaction ->
                     callback(Result.success(activeTransaction))
+                    _isLoading.value = false
                     return@launch
                 }
 
-                // Get vehicle details (you'll need to inject VehicleRepository)
-                // For now, create transaction with vehicleId
+                // Get vehicle details to get ownerId
+                val vehicleResult = vehicleRepository.getVehicle(vehicleId)
+                val ownerId = vehicleResult.getOrNull()?.ownerId ?: ""
+
                 val transaction = ParkingTransaction(
                     parkingLotId = parkingLotId,
                     vehicleId = vehicleId,
-                    ownerId = "", // Will be filled from vehicle data
-                    vehicleNumber = vehicleId, // Simplified for now
+                    ownerId = ownerId,
+                    vehicleNumber = vehicleNumber,
                     entryTime = System.currentTimeMillis(),
                     status = "ACTIVE"
                 )
@@ -150,12 +160,17 @@ class ParkingTransactionViewModel @Inject constructor(
                 val result = transactionRepository.addTransaction(transaction)
                 result.onSuccess { transactionId ->
                     val completedTransaction = transaction.copy(id = transactionId)
+                    _activeParking.value = completedTransaction
                     callback(Result.success(completedTransaction))
                 }.onFailure { error ->
+                    _errorMessage.value = error.message ?: "Failed to save entry"
                     callback(Result.failure(error))
                 }
             } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Unknown error occurred"
                 callback(Result.failure(e))
+            } finally {
+                _isLoading.value = false
             }
         }
     }
@@ -166,11 +181,15 @@ class ParkingTransactionViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                
                 val activeResult = transactionRepository.getActiveParkingByVehicle(vehicleId)
                 val activeTransaction = activeResult.getOrNull()
                 
                 if (activeTransaction == null) {
                     callback(Result.failure(Exception("No active parking found for this vehicle")))
+                    _isLoading.value = false
                     return@launch
                 }
 
@@ -185,12 +204,130 @@ class ParkingTransactionViewModel @Inject constructor(
 
                 val result = transactionRepository.updateTransaction(updatedTransaction)
                 result.onSuccess {
+                    _activeParking.value = null
                     callback(Result.success(updatedTransaction))
                 }.onFailure { error ->
+                    _errorMessage.value = error.message ?: "Failed to process exit"
                     callback(Result.failure(error))
                 }
             } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Unknown error occurred"
                 callback(Result.failure(e))
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun processVehicleEntryByNumber(
+        vehicleNumber: String,
+        parkingLotId: String = "default_lot",
+        callback: (Result<ParkingTransaction>) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                
+                // Find vehicle by number
+                val vehicleResult = vehicleRepository.getAllVehicles()
+                val vehicle = vehicleResult.getOrNull()?.find { 
+                    it.vehicleNumber.equals(vehicleNumber, ignoreCase = true) 
+                }
+                
+                if (vehicle == null) {
+                    callback(Result.failure(Exception("Vehicle not found: $vehicleNumber")))
+                    _isLoading.value = false
+                    return@launch
+                }
+                
+                // Check if already has active parking
+                val activeResult = transactionRepository.getActiveParkingByVehicle(vehicle.id)
+                activeResult.getOrNull()?.let { activeTransaction ->
+                    callback(Result.success(activeTransaction))
+                    _isLoading.value = false
+                    return@launch
+                }
+
+                val transaction = ParkingTransaction(
+                    parkingLotId = parkingLotId,
+                    vehicleId = vehicle.id,
+                    ownerId = vehicle.ownerId,
+                    vehicleNumber = vehicle.vehicleNumber,
+                    entryTime = System.currentTimeMillis(),
+                    status = "ACTIVE"
+                )
+
+                val result = transactionRepository.addTransaction(transaction)
+                result.onSuccess { transactionId ->
+                    val completedTransaction = transaction.copy(id = transactionId)
+                    _activeParking.value = completedTransaction
+                    callback(Result.success(completedTransaction))
+                }.onFailure { error ->
+                    _errorMessage.value = error.message ?: "Failed to save entry"
+                    callback(Result.failure(error))
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Unknown error occurred"
+                callback(Result.failure(e))
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun processVehicleExitByNumber(
+        vehicleNumber: String,
+        callback: (Result<ParkingTransaction>) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                
+                // Find vehicle by number
+                val vehicleResult = vehicleRepository.getAllVehicles()
+                val vehicle = vehicleResult.getOrNull()?.find { 
+                    it.vehicleNumber.equals(vehicleNumber, ignoreCase = true) 
+                }
+                
+                if (vehicle == null) {
+                    callback(Result.failure(Exception("Vehicle not found: $vehicleNumber")))
+                    _isLoading.value = false
+                    return@launch
+                }
+                
+                val activeResult = transactionRepository.getActiveParkingByVehicle(vehicle.id)
+                val activeTransaction = activeResult.getOrNull()
+                
+                if (activeTransaction == null) {
+                    callback(Result.failure(Exception("No active parking found for this vehicle")))
+                    _isLoading.value = false
+                    return@launch
+                }
+
+                val exitTime = System.currentTimeMillis()
+                val duration = (exitTime - activeTransaction.entryTime) / (1000 * 60) // in minutes
+
+                val updatedTransaction = activeTransaction.copy(
+                    exitTime = exitTime,
+                    duration = duration,
+                    status = "COMPLETED"
+                )
+
+                val result = transactionRepository.updateTransaction(updatedTransaction)
+                result.onSuccess {
+                    _activeParking.value = null
+                    callback(Result.success(updatedTransaction))
+                }.onFailure { error ->
+                    _errorMessage.value = error.message ?: "Failed to process exit"
+                    callback(Result.failure(error))
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Unknown error occurred"
+                callback(Result.failure(e))
+            } finally {
+                _isLoading.value = false
             }
         }
     }

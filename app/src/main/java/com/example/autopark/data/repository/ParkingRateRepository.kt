@@ -10,7 +10,20 @@ class ParkingRateRepository @Inject constructor(
 ) {
     suspend fun addParkingRate(rate: ParkingRate): Result<String> {
         return try {
-            val docRef = db.collection("parking_rates").add(rate).await()
+            val rateMap = hashMapOf(
+                "parkingLotId" to rate.parkingLotId,
+                "rateType" to rate.rateType,
+                "pricePerHour" to rate.pricePerHour,
+                "pricePerDay" to rate.pricePerDay,
+                "overnightPrice" to rate.overnightPrice,
+                "minChargeAmount" to rate.minChargeAmount,
+                "maxChargePerDay" to rate.maxChargePerDay,
+                "isActive" to rate.isActive,
+                "vipMultiplier" to rate.vipMultiplier,
+                "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+            val docRef = db.collection("parking_rates").add(rateMap).await()
             Result.success(docRef.id)
         } catch (e: Exception) {
             Result.failure(e)
@@ -19,7 +32,19 @@ class ParkingRateRepository @Inject constructor(
 
     suspend fun updateParkingRate(rate: ParkingRate): Result<Unit> {
         return try {
-            db.collection("parking_rates").document(rate.id).set(rate).await()
+            val rateMap = hashMapOf(
+                "parkingLotId" to rate.parkingLotId,
+                "rateType" to rate.rateType,
+                "pricePerHour" to rate.pricePerHour,
+                "pricePerDay" to rate.pricePerDay,
+                "overnightPrice" to rate.overnightPrice,
+                "minChargeAmount" to rate.minChargeAmount,
+                "maxChargePerDay" to rate.maxChargePerDay,
+                "isActive" to rate.isActive,
+                "vipMultiplier" to rate.vipMultiplier,
+                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+            db.collection("parking_rates").document(rate.id).update(rateMap as Map<String, Any>).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -40,7 +65,8 @@ class ParkingRateRepository @Inject constructor(
             val doc = db.collection("parking_rates").document(rateId).get().await()
             val rate = doc.toObject(ParkingRate::class.java)
             if (rate != null) {
-                Result.success(rate.copy(id = doc.id))
+                rate.id = doc.id
+                Result.success(rate)
             } else {
                 Result.failure(Exception("Parking rate not found"))
             }
@@ -56,7 +82,7 @@ class ParkingRateRepository @Inject constructor(
                 .get()
                 .await()
             val rates = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingRate::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
             }
             Result.success(rates)
         } catch (e: Exception) {
@@ -72,7 +98,7 @@ class ParkingRateRepository @Inject constructor(
                 .get()
                 .await()
             val rates = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingRate::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
             }
             Result.success(rates)
         } catch (e: Exception) {
@@ -88,7 +114,7 @@ class ParkingRateRepository @Inject constructor(
                 .get()
                 .await()
             val rate = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingRate::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
             }.firstOrNull()
             Result.success(rate)
         } catch (e: Exception) {
@@ -100,7 +126,7 @@ class ParkingRateRepository @Inject constructor(
         return try {
             val docs = db.collection("parking_rates").get().await()
             val rates = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingRate::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
             }
             Result.success(rates)
         } catch (e: Exception) {

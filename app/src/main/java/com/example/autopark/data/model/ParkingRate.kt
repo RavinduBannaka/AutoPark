@@ -1,23 +1,59 @@
 package com.example.autopark.data.model
 
+import com.google.firebase.firestore.PropertyName
 import com.google.firebase.firestore.ServerTimestamp
 import java.util.Date
 
 data class ParkingRate(
-    val id: String = "",
-    val parkingLotId: String = "",
-    val rateType: String = "", // NORMAL, VIP, HOURLY, OVERNIGHT
-    val pricePerHour: Double = 0.0,
-    val pricePerDay: Double = 0.0, // 24 hours
-    val overnightPrice: Double = 0.0, // 8 PM - 8 AM
-    val minChargeAmount: Double = 0.0,
-    val maxChargePerDay: Double = 0.0,
-    val isActive: Boolean = true,
-    val vipMultiplier: Double = 1.0, // For VIP rates
+    @get:PropertyName("id")
+    @set:PropertyName("id")
+    var id: String = "",
+
+    @get:PropertyName("parkingLotId")
+    @set:PropertyName("parkingLotId")
+    var parkingLotId: String = "",
+
+    @get:PropertyName("rateType")
+    @set:PropertyName("rateType")
+    var rateType: String = "",
+
+    @get:PropertyName("pricePerHour")
+    @set:PropertyName("pricePerHour")
+    var pricePerHour: Double = 0.0,
+
+    @get:PropertyName("pricePerDay")
+    @set:PropertyName("pricePerDay")
+    var pricePerDay: Double = 0.0,
+
+    @get:PropertyName("overnightPrice")
+    @set:PropertyName("overnightPrice")
+    var overnightPrice: Double = 0.0,
+
+    @get:PropertyName("minChargeAmount")
+    @set:PropertyName("minChargeAmount")
+    var minChargeAmount: Double = 0.0,
+
+    @get:PropertyName("maxChargePerDay")
+    @set:PropertyName("maxChargePerDay")
+    var maxChargePerDay: Double = 0.0,
+
+    @get:PropertyName("isActive")
+    @set:PropertyName("isActive")
+    var isActive: Boolean = true,
+
+    @get:PropertyName("vipMultiplier")
+    @set:PropertyName("vipMultiplier")
+    var vipMultiplier: Double = 1.0,
+
+    @get:PropertyName("createdAt")
+    @set:PropertyName("createdAt")
     @ServerTimestamp
-    val createdAt: Date? = null,
+    var createdAt: Date? = null,
+
+    @get:PropertyName("updatedAt")
+    @set:PropertyName("updatedAt")
     @ServerTimestamp
-    val updatedAt: Date? = null
+    var updatedAt: Date? = null
 )
 
 enum class RateType {

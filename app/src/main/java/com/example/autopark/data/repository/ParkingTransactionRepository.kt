@@ -10,7 +10,24 @@ class ParkingTransactionRepository @Inject constructor(
 ) {
     suspend fun addTransaction(transaction: ParkingTransaction): Result<String> {
         return try {
-            val docRef = db.collection("parking_transactions").add(transaction).await()
+            val transactionMap = hashMapOf(
+                "parkingLotId" to transaction.parkingLotId,
+                "vehicleId" to transaction.vehicleId,
+                "ownerId" to transaction.ownerId,
+                "vehicleNumber" to transaction.vehicleNumber,
+                "entryTime" to transaction.entryTime,
+                "exitTime" to transaction.exitTime,
+                "duration" to transaction.duration,
+                "rateType" to transaction.rateType,
+                "chargeAmount" to transaction.chargeAmount,
+                "status" to transaction.status,
+                "paymentMethod" to transaction.paymentMethod,
+                "paymentStatus" to transaction.paymentStatus,
+                "notes" to transaction.notes,
+                "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+            val docRef = db.collection("parking_transactions").add(transactionMap).await()
             Result.success(docRef.id)
         } catch (e: Exception) {
             Result.failure(e)
@@ -19,8 +36,24 @@ class ParkingTransactionRepository @Inject constructor(
 
     suspend fun updateTransaction(transaction: ParkingTransaction): Result<Unit> {
         return try {
+            val transactionMap = hashMapOf(
+                "parkingLotId" to transaction.parkingLotId,
+                "vehicleId" to transaction.vehicleId,
+                "ownerId" to transaction.ownerId,
+                "vehicleNumber" to transaction.vehicleNumber,
+                "entryTime" to transaction.entryTime,
+                "exitTime" to transaction.exitTime,
+                "duration" to transaction.duration,
+                "rateType" to transaction.rateType,
+                "chargeAmount" to transaction.chargeAmount,
+                "status" to transaction.status,
+                "paymentMethod" to transaction.paymentMethod,
+                "paymentStatus" to transaction.paymentStatus,
+                "notes" to transaction.notes,
+                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
             db.collection("parking_transactions").document(transaction.id)
-                .set(transaction).await()
+                .update(transactionMap as Map<String, Any>).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -32,7 +65,8 @@ class ParkingTransactionRepository @Inject constructor(
             val doc = db.collection("parking_transactions").document(transactionId).get().await()
             val transaction = doc.toObject(ParkingTransaction::class.java)
             if (transaction != null) {
-                Result.success(transaction.copy(id = doc.id))
+                transaction.id = doc.id
+                Result.success(transaction)
             } else {
                 Result.failure(Exception("Transaction not found"))
             }
@@ -49,7 +83,7 @@ class ParkingTransactionRepository @Inject constructor(
                 .get()
                 .await()
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
             }
             Result.success(transactions)
         } catch (e: Exception) {
@@ -65,7 +99,7 @@ class ParkingTransactionRepository @Inject constructor(
                 .get()
                 .await()
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
             }
             Result.success(transactions)
         } catch (e: Exception) {
@@ -81,7 +115,7 @@ class ParkingTransactionRepository @Inject constructor(
                 .get()
                 .await()
             val transaction = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
             }.firstOrNull()
             Result.success(transaction)
         } catch (e: Exception) {
@@ -106,7 +140,7 @@ class ParkingTransactionRepository @Inject constructor(
                 .await()
             
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
             }
             Result.success(transactions)
         } catch (e: Exception) {
@@ -122,7 +156,7 @@ class ParkingTransactionRepository @Inject constructor(
                 .get()
                 .await()
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
             }
             Result.success(transactions)
         } catch (e: Exception) {
@@ -147,7 +181,7 @@ class ParkingTransactionRepository @Inject constructor(
                 .await()
             
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
             }
             Result.success(transactions)
         } catch (e: Exception) {
@@ -159,7 +193,7 @@ class ParkingTransactionRepository @Inject constructor(
         return try {
             val docs = db.collection("parking_transactions").get().await()
             val transactions = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingTransaction::class.java)?.copy(id = doc.id)
+                doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
             }
             Result.success(transactions)
         } catch (e: Exception) {

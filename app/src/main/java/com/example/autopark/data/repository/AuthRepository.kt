@@ -104,7 +104,7 @@ class AuthRepository @Inject constructor(
         return try {
             val docs = db.collection("users").get().await()
             val users = docs.documents.mapNotNull { doc ->
-                doc.toObject(User::class.java)?.copy(id = doc.id)
+                doc.toObject(User::class.java)?.apply { id = doc.id }
             }
             Result.success(users)
         } catch (e: Exception) {

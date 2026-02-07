@@ -1,26 +1,77 @@
 package com.example.autopark.data.model
 
+import com.google.firebase.firestore.PropertyName
 import com.google.firebase.firestore.ServerTimestamp
 import java.util.Date
 
 data class ParkingLot(
-    val id: String = "",
-    val name: String = "",
-    val address: String = "",
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0,
-    val city: String = "",
-    val state: String = "",
-    val zipCode: String = "",
-    val totalSpots: Int = 0,
-    val availableSpots: Int = 0,
-    val description: String = "",
-    val contactNumber: String = "",
-    val openingTime: String = "", // HH:mm format
-    val closingTime: String = "", // HH:mm format
-    val is24Hours: Boolean = false,
+    @get:PropertyName("id")
+    @set:PropertyName("id")
+    var id: String = "",
+
+    @get:PropertyName("name")
+    @set:PropertyName("name")
+    var name: String = "",
+
+    @get:PropertyName("address")
+    @set:PropertyName("address")
+    var address: String = "",
+
+    @get:PropertyName("latitude")
+    @set:PropertyName("latitude")
+    var latitude: Double = 0.0,
+
+    @get:PropertyName("longitude")
+    @set:PropertyName("longitude")
+    var longitude: Double = 0.0,
+
+    @get:PropertyName("city")
+    @set:PropertyName("city")
+    var city: String = "",
+
+    @get:PropertyName("state")
+    @set:PropertyName("state")
+    var state: String = "",
+
+    @get:PropertyName("zipCode")
+    @set:PropertyName("zipCode")
+    var zipCode: String = "",
+
+    @get:PropertyName("totalSpots")
+    @set:PropertyName("totalSpots")
+    var totalSpots: Int = 0,
+
+    @get:PropertyName("availableSpots")
+    @set:PropertyName("availableSpots")
+    var availableSpots: Int = 0,
+
+    @get:PropertyName("description")
+    @set:PropertyName("description")
+    var description: String = "",
+
+    @get:PropertyName("contactNumber")
+    @set:PropertyName("contactNumber")
+    var contactNumber: String = "",
+
+    @get:PropertyName("openingTime")
+    @set:PropertyName("openingTime")
+    var openingTime: String = "",
+
+    @get:PropertyName("closingTime")
+    @set:PropertyName("closingTime")
+    var closingTime: String = "",
+
+    @get:PropertyName("is24Hours")
+    @set:PropertyName("is24Hours")
+    var is24Hours: Boolean = false,
+
+    @get:PropertyName("createdAt")
+    @set:PropertyName("createdAt")
     @ServerTimestamp
-    val createdAt: Date? = null,
+    var createdAt: Date? = null,
+
+    @get:PropertyName("updatedAt")
+    @set:PropertyName("updatedAt")
     @ServerTimestamp
-    val updatedAt: Date? = null
+    var updatedAt: Date? = null
 )
