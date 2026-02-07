@@ -1,20 +1,53 @@
 package com.example.autopark.data.model
 
+import com.google.firebase.firestore.PropertyName
 import com.google.firebase.firestore.ServerTimestamp
 import java.util.Date
 
 data class Vehicle(
-    val id: String = "",
-    val ownerId: String = "",
-    val vehicleNumber: String = "",
-    val vehicleType: String = "", // Car, Bike, Truck, etc.
-    val color: String = "",
-    val brand: String = "",
-    val model: String = "",
-    val parkingLicenseValid: Boolean = true,
-    val registrationExpiry: Long = 0,
+    @get:PropertyName("id")
+    @set:PropertyName("id")
+    var id: String = "",
+
+    @get:PropertyName("ownerId")
+    @set:PropertyName("ownerId")
+    var ownerId: String = "",
+
+    @get:PropertyName("vehicleNumber")
+    @set:PropertyName("vehicleNumber")
+    var vehicleNumber: String = "",
+
+    @get:PropertyName("vehicleType")
+    @set:PropertyName("vehicleType")
+    var vehicleType: String = "", // Car, Bike, Truck, etc.
+
+    @get:PropertyName("color")
+    @set:PropertyName("color")
+    var color: String = "",
+
+    @get:PropertyName("brand")
+    @set:PropertyName("brand")
+    var brand: String = "",
+
+    @get:PropertyName("model")
+    @set:PropertyName("model")
+    var model: String = "",
+
+    @get:PropertyName("parkingLicenseValid")
+    @set:PropertyName("parkingLicenseValid")
+    var parkingLicenseValid: Boolean = true,
+
+    @get:PropertyName("registrationExpiry")
+    @set:PropertyName("registrationExpiry")
+    var registrationExpiry: Long = 0,
+
+    @get:PropertyName("createdAt")
+    @set:PropertyName("createdAt")
     @ServerTimestamp
-    val createdAt: Date? = null,
+    var createdAt: Date? = null,
+
+    @get:PropertyName("updatedAt")
+    @set:PropertyName("updatedAt")
     @ServerTimestamp
-    val updatedAt: Date? = null
+    var updatedAt: Date? = null
 )

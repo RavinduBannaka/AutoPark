@@ -12,7 +12,20 @@ class VehicleRepository @Inject constructor(
 ) {
     suspend fun addVehicle(vehicle: Vehicle): Result<String> {
         return try {
-            val docRef = db.collection("vehicles").add(vehicle).await()
+            // Create a map to ensure all fields are properly set
+            val vehicleMap = hashMapOf(
+                "ownerId" to vehicle.ownerId,
+                "vehicleNumber" to vehicle.vehicleNumber,
+                "vehicleType" to vehicle.vehicleType,
+                "color" to vehicle.color,
+                "brand" to vehicle.brand,
+                "model" to vehicle.model,
+                "parkingLicenseValid" to vehicle.parkingLicenseValid,
+                "registrationExpiry" to vehicle.registrationExpiry,
+                "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+            val docRef = db.collection("vehicles").add(vehicleMap).await()
             Result.success(docRef.id)
         } catch (e: Exception) {
             Result.failure(e)

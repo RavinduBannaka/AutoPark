@@ -1,27 +1,39 @@
+@file:OptIn(ExperimentalGetImage::class)
+
 package com.example.autopark.ui.screens.admin
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
-//import androidx.compose.material.icons.filled.QrCode2
+//import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.autopark.data.model.ParkingTransaction
 import com.example.autopark.ui.viewmodel.ParkingTransactionViewModel
+import com.google.mlkit.vision.barcode.BarcodeScanner
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.common.InputImage
+import java.util.concurrent.Executors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,6 +42,7 @@ fun QRScannerScreen(
     viewModel: ParkingTransactionViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -44,6 +57,8 @@ fun QRScannerScreen(
     var showResult by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
     var transactionResult by remember { mutableStateOf<Result<ParkingTransaction>?>(null) }
+    var scannedCode by remember { mutableStateOf<String?>(null) }
+    var isScanning by remember { mutableStateOf(true) }
     
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -54,6 +69,27 @@ fun QRScannerScreen(
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+    
+    // Handle scanned QR code
+    LaunchedEffect(scannedCode) {
+        scannedCode?.let { code ->
+            isScanning = false
+            // Parse QR code format: "vehicleNumber|vehicleId"
+            val parts = code.split("|")
+            val extractedVehicleNumber = parts.firstOrNull() ?: code
+            vehicleNumber = extractedVehicleNumber
+            
+            // Auto-process as entry if scanning
+            if (extractedVehicleNumber.isNotBlank()) {
+                isProcessing = true
+                viewModel.processVehicleEntry(extractedVehicleNumber) { result ->
+                    transactionResult = result
+                    showResult = true
+                    isProcessing = false
+                }
+            }
         }
     }
     
@@ -80,12 +116,12 @@ fun QRScannerScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (hasCameraPermission) {
-                // Camera Placeholder
+                // Camera Preview with ML Kit
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f)
-                        .padding(bottom = 24.dp),
+                        .padding(bottom = 16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
@@ -94,27 +130,52 @@ fun QRScannerScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-//                                imageVector = Icons.Default.QrCode2,
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                modifier = Modifier.size(80.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                        if (isScanning) {
+                            CameraPreviewWithQRScanner(
+                                onQRCodeScanned = { code ->
+                                    if (scannedCode == null) {
+                                        scannedCode = code
+                                    }
+                                }
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "Camera Preview",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "(ML Kit Camera Integration Required)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            
+                            // Scanning overlay
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(120.dp),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                )
+                            }
+                        } else {
+                            // Show scanned result preview
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(80.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "QR Code Scanned!",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Vehicle: $vehicleNumber",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
                         }
                     }
                 }
@@ -135,7 +196,7 @@ fun QRScannerScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Text(
-                            text = "Enter vehicle number to simulate QR scan:",
+                            text = "Enter vehicle number manually:",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -190,11 +251,25 @@ fun QRScannerScreen(
                                 Text("Process Exit")
                             }
                         }
+                        
+                        if (!isScanning) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    scannedCode = null
+                                    vehicleNumber = ""
+                                    isScanning = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Scan Another QR Code")
+                            }
+                        }
                     }
                 }
                 
                 // Instructions
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -212,7 +287,7 @@ fun QRScannerScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "1. Enter a vehicle number above\n2. Click 'Process Entry' for vehicle entry\n3. Click 'Process Exit' for vehicle exit\n4. Charges are calculated automatically",
+                            text = "1. Point camera at QR code to scan automatically\n2. Or enter vehicle number manually\n3. Click 'Process Entry' for vehicle entry\n4. Click 'Process Exit' for vehicle exit",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -225,7 +300,6 @@ fun QRScannerScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
-//                        imageVector = Icons.Default.QrCode2,
                         imageVector = Icons.Default.ArrowDropDown,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
@@ -261,6 +335,99 @@ fun QRScannerScreen(
                 transactionResult = null
             }
         )
+    }
+}
+
+@Composable
+fun CameraPreviewWithQRScanner(
+    onQRCodeScanned: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    val executor = remember { Executors.newSingleThreadExecutor() }
+    val barcodeScanner = remember { BarcodeScanning.getClient() }
+    
+    var preview by remember { mutableStateOf<Preview?>(null) }
+    
+    AndroidView(
+        factory = { ctx ->
+            val previewView = PreviewView(ctx).apply {
+                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            }
+            
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            
+            cameraProviderFuture.addListener({
+                val cameraProvider = cameraProviderFuture.get()
+                
+                preview = Preview.Builder()
+                    .build()
+                    .also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
+                
+                val imageAnalysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                    .also { analysis ->
+                        analysis.setAnalyzer(executor) { imageProxy ->
+                            processImageProxy(
+                                barcodeScanner,
+                                imageProxy,
+                                onQRCodeScanned
+                            )
+                        }
+                    }
+                
+                try {
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        cameraSelector,
+                        preview,
+                        imageAnalysis
+                    )
+                } catch (e: Exception) {
+                    Log.e("QRScanner", "Camera binding failed", e)
+                }
+            }, ContextCompat.getMainExecutor(ctx))
+            
+            previewView
+        },
+        modifier = Modifier.fillMaxSize()
+    )
+}
+
+private fun processImageProxy(
+    barcodeScanner: BarcodeScanner,
+    imageProxy: ImageProxy,
+    onQRCodeScanned: (String) -> Unit
+) {
+    val mediaImage = imageProxy.image
+    if (mediaImage != null) {
+        val image = InputImage.fromMediaImage(
+            mediaImage,
+            imageProxy.imageInfo.rotationDegrees
+        )
+        
+        barcodeScanner.process(image)
+            .addOnSuccessListener { barcodes ->
+                if (barcodes.isNotEmpty()) {
+                    val barcode = barcodes.first()
+                    barcode.rawValue?.let { value ->
+                        onQRCodeScanned(value)
+                    }
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("QRScanner", "Barcode scanning failed", e)
+            }
+            .addOnCompleteListener {
+                imageProxy.close()
+            }
+    } else {
+        imageProxy.close()
     }
 }
 
