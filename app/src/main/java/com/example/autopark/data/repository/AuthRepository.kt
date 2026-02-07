@@ -99,4 +99,25 @@ class AuthRepository @Inject constructor(
             null
         }
     }
+
+    suspend fun getAllUsers(): Result<List<User>> {
+        return try {
+            val docs = db.collection("users").get().await()
+            val users = docs.documents.mapNotNull { doc ->
+                doc.toObject(User::class.java)?.copy(id = doc.id)
+            }
+            Result.success(users)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun addUser(user: User): Result<Unit> {
+        return try {
+            db.collection("users").document(user.id).set(user).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

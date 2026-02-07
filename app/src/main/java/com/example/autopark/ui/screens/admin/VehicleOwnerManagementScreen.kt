@@ -16,37 +16,35 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.autopark.data.model.User
-import com.example.autopark.ui.viewmodel.AuthViewModel
+import com.example.autopark.ui.viewmodel.UserManagementViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehicleOwnerManagementScreen(
     navController: NavController,
-    viewModel: AuthViewModel = hiltViewModel()
+    viewModel: UserManagementViewModel = hiltViewModel()
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedOwner by remember { mutableStateOf<User?>(null) }
     
-    // In a real app, you'd have a separate ViewModel for managing users
-    // For now, we'll use sample data
-    val owners = remember { mutableStateListOf(
-        User(
-            id = "1",
-            email = "john@example.com",
-            name = "John Doe",
-            phoneNumber = "1234567890",
-            role = "driver",
-            isVIP = true
-        ),
-        User(
-            id = "2",
-            email = "jane@example.com",
-            name = "Jane Smith",
-            phoneNumber = "0987654321",
-            role = "driver",
-            isVIP = false
-        )
-    ) }
+    val owners by viewModel.drivers.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Show error messages
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearError()
+        }
+    }
+    
+    // Load owners on first composition
+    LaunchedEffect(Unit) {
+        viewModel.loadAllDrivers()
+    }
 
     Scaffold(
         topBar = {
@@ -55,6 +53,11 @@ fun VehicleOwnerManagementScreen(
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.loadAllDrivers() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -69,7 +72,8 @@ fun VehicleOwnerManagementScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Owner")
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -83,16 +87,53 @@ fun VehicleOwnerManagementScreen(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(owners) { owner ->
-                    OwnerCard(
-                        owner = owner,
-                        onEdit = { selectedOwner = owner },
-                        onDelete = { owners.remove(owner) }
-                    )
+            
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (owners.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No vehicle owners found",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Add your first vehicle owner using the + button",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(owners, key = { it.id }) { owner ->
+                        OwnerCard(
+                            owner = owner,
+                            onEdit = { selectedOwner = owner },
+                            onDelete = { viewModel.deleteUser(owner.id) }
+                        )
+                    }
                 }
             }
         }
@@ -103,7 +144,7 @@ fun VehicleOwnerManagementScreen(
             owner = null,
             onDismiss = { showAddDialog = false },
             onSave = { newOwner ->
-                owners.add(newOwner.copy(id = (owners.size + 1).toString()))
+                viewModel.addUser(newOwner)
                 showAddDialog = false
             }
         )
@@ -114,10 +155,7 @@ fun VehicleOwnerManagementScreen(
             owner = selectedOwner,
             onDismiss = { selectedOwner = null },
             onSave = { updatedOwner ->
-                val index = owners.indexOfFirst { it.id == updatedOwner.id }
-                if (index != -1) {
-                    owners[index] = updatedOwner
-                }
+                viewModel.updateUser(updatedOwner)
                 selectedOwner = null
             }
         )
@@ -175,6 +213,24 @@ fun OwnerCard(
                 style = MaterialTheme.typography.bodyMedium
             )
             
+            if (owner.address.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Address: ${owner.address}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            if (owner.licenseNumber.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "License: ${owner.licenseNumber}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
             Spacer(modifier = Modifier.height(12.dp))
             
             Row(
@@ -214,6 +270,9 @@ fun OwnerDialog(
     var isVIP by remember { mutableStateOf(owner?.isVIP ?: false) }
     var address by remember { mutableStateOf(owner?.address ?: "") }
     var licenseNumber by remember { mutableStateOf(owner?.licenseNumber ?: "") }
+    var city by remember { mutableStateOf(owner?.city ?: "") }
+    var state by remember { mutableStateOf(owner?.state ?: "") }
+    var zipCode by remember { mutableStateOf(owner?.zipCode ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -226,32 +285,63 @@ fun OwnerDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Full Name") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("Full Name *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Email") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("Email *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { phone = it },
                     label = { Text("Phone Number") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = address,
-                    onValueChange = { address = it },
-                    label = { Text("Address") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
                 OutlinedTextField(
                     value = licenseNumber,
                     onValueChange = { licenseNumber = it },
                     label = { Text("License Number") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    label = { Text("Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = city,
+                        onValueChange = { city = it },
+                        label = { Text("City") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = state,
+                        onValueChange = { state = it },
+                        label = { Text("State") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+                OutlinedTextField(
+                    value = zipCode,
+                    onValueChange = { zipCode = it },
+                    label = { Text("ZIP Code") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -275,6 +365,9 @@ fun OwnerDialog(
                             email = email,
                             phoneNumber = phone,
                             address = address,
+                            city = city,
+                            state = state,
+                            zipCode = zipCode,
                             licenseNumber = licenseNumber,
                             isVIP = isVIP,
                             role = "driver"

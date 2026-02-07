@@ -89,4 +89,16 @@ class InvoiceRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun getAllInvoices(): Result<List<Invoice>> {
+        return try {
+            val docs = db.collection("invoices").get().await()
+            val invoices = docs.documents.mapNotNull { doc ->
+                doc.toObject(Invoice::class.java)?.copy(id = doc.id)
+            }
+            Result.success(invoices)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

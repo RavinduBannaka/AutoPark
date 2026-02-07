@@ -73,6 +73,8 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.analytics)
+    implementation(libs.firebase.storage)
+    implementation(libs.firebase.messaging)
 
     // QR Code Scanning and Generation
     implementation(libs.mlkit.barcode.scanning)

@@ -132,7 +132,10 @@ fun InvoiceScreen(
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Button(
-                                    onClick = { /* TODO: View invoice details */ },
+                                    onClick = { 
+                                        // Navigate to invoice detail or show in dialog
+                                        navController.navigate("invoice_detail/${invoice.id}")
+                                    },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text("View Details")

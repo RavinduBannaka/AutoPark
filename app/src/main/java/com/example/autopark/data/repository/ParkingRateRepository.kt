@@ -95,4 +95,16 @@ class ParkingRateRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun getAllParkingRates(): Result<List<ParkingRate>> {
+        return try {
+            val docs = db.collection("parking_rates").get().await()
+            val rates = docs.documents.mapNotNull { doc ->
+                doc.toObject(ParkingRate::class.java)?.copy(id = doc.id)
+            }
+            Result.success(rates)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

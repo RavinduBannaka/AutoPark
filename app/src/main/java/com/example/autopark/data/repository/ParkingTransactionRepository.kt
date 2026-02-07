@@ -154,4 +154,16 @@ class ParkingTransactionRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun getAllTransactions(): Result<List<ParkingTransaction>> {
+        return try {
+            val docs = db.collection("parking_transactions").get().await()
+            val transactions = docs.documents.mapNotNull { doc ->
+                doc.toObject(ParkingTransaction::class.java)?.copy(id = doc.id)
+            }
+            Result.success(transactions)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

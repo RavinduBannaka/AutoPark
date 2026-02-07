@@ -85,4 +85,16 @@ class OverdueChargeRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun getAllOverdueCharges(): Result<List<OverdueCharge>> {
+        return try {
+            val docs = db.collection("overdue_charges").get().await()
+            val charges = docs.documents.mapNotNull { doc ->
+                doc.toObject(OverdueCharge::class.java)?.copy(id = doc.id)
+            }
+            Result.success(charges)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

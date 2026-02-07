@@ -9,7 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowDropDown
-//import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,49 +17,74 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.example.autopark.ui.viewmodel.*
+import com.example.autopark.ui.viewmodel.DataImportExportViewModel
 import com.example.autopark.util.JsonDataManager
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DataImportExportScreen(
     navController: NavController,
-    parkingLotViewModel: ParkingLotViewModel = hiltViewModel(),
-    vehicleViewModel: VehicleViewModel = hiltViewModel(),
-    authViewModel: AuthViewModel = hiltViewModel()
+    viewModel: DataImportExportViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val jsonDataManager = remember { JsonDataManager(context) }
+    val scope = rememberCoroutineScope()
     
-    var showSnackbar by remember { mutableStateOf<String?>(null) }
-    var isProcessing by remember { mutableStateOf(false) }
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val progress by viewModel.progress.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val successMessage by viewModel.successMessage.collectAsStateWithLifecycle()
+    
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Show messages
+    LaunchedEffect(errorMessage, successMessage) {
+        errorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessages()
+        }
+        successMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessages()
+        }
+    }
 
-    // Export launcher
+    // Export launcher with real Firebase data
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                isProcessing = true
-                // In a real app, you would collect all data from ViewModels
-                // For now, we'll export sample data
-                val sampleData = jsonDataManager.generateSampleData()
-                jsonDataManager.exportAllData(
-                    users = sampleData.users,
-                    vehicles = sampleData.vehicles,
-                    parkingLots = sampleData.parkingLots,
-                    parkingRates = sampleData.parkingRates,
-                    transactions = sampleData.transactions,
-                    invoices = sampleData.invoices,
-                    overdueCharges = sampleData.overdueCharges,
-                    outputUri = uri
-                ).onSuccess {
-                    showSnackbar = "Data exported successfully!"
-                }.onFailure { error ->
-                    showSnackbar = "Export failed: ${error.message}"
+                scope.launch {
+                    viewModel.exportAllData().onSuccess { exportData ->
+                        jsonDataManager.exportAllData(
+                            users = exportData.users,
+                            vehicles = exportData.vehicles,
+                            parkingLots = exportData.parkingLots,
+                            parkingRates = exportData.parkingRates,
+                            transactions = exportData.transactions,
+                            invoices = exportData.invoices,
+                            overdueCharges = exportData.overdueCharges,
+                            outputUri = uri
+                        ).onSuccess {
+                            val totalRecords = exportData.users.size + 
+                                exportData.vehicles.size + 
+                                exportData.parkingLots.size +
+                                exportData.parkingRates.size +
+                                exportData.transactions.size +
+                                exportData.invoices.size +
+                                exportData.overdueCharges.size
+                            viewModel.showSuccess("Exported $totalRecords records successfully!")
+                        }.onFailure { error ->
+                            viewModel.showError("Export failed: ${error.message}")
+                        }
+                    }.onFailure { error ->
+                        viewModel.showError("Export failed: ${error.message}")
+                    }
                 }
-                isProcessing = false
             }
         }
     }
@@ -71,16 +95,40 @@ fun DataImportExportScreen(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                isProcessing = true
-                jsonDataManager.importData(uri).onSuccess { data ->
-                    // In a real app, you would save this data to Firestore
-                    showSnackbar = "Data imported successfully! " +
-                            "(${data.users.size} users, ${data.vehicles.size} vehicles, " +
-                            "${data.parkingLots.size} lots)"
-                }.onFailure { error ->
-                    showSnackbar = "Import failed: ${error.message}"
+                scope.launch {
+                    try {
+                        jsonDataManager.importData(uri).onSuccess { data ->
+                            val importResult = viewModel.importAllData(
+                                DataImportExportViewModel.ExportData(
+                                    users = data.users,
+                                    vehicles = data.vehicles,
+                                    parkingLots = data.parkingLots,
+                                    parkingRates = data.parkingRates,
+                                    transactions = data.transactions,
+                                    invoices = data.invoices,
+                                    overdueCharges = data.overdueCharges
+                                )
+                            )
+                            
+                            val message = buildString {
+                                append("Imported: ${importResult.successCount} records")
+                                if (importResult.errorCount > 0) {
+                                    append(" (${importResult.errorCount} errors)")
+                                }
+                            }
+                            
+                            if (importResult.errorCount > 0) {
+                                viewModel.showError(message)
+                            } else {
+                                viewModel.showSuccess(message)
+                            }
+                        }.onFailure { error ->
+                            viewModel.showError("Import failed: ${error.message}")
+                        }
+                    } catch (e: Exception) {
+                        viewModel.showError("Import failed: ${e.message}")
+                    }
                 }
-                isProcessing = false
             }
         }
     }
@@ -91,13 +139,11 @@ fun DataImportExportScreen(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                isProcessing = true
                 jsonDataManager.exportSampleDataToFile(uri).onSuccess {
-                    showSnackbar = "Sample data exported successfully!"
+                    viewModel.showSuccess("Sample data exported successfully!")
                 }.onFailure { error ->
-                    showSnackbar = "Export failed: ${error.message}"
+                    viewModel.showError("Export failed: ${error.message}")
                 }
-                isProcessing = false
             }
         }
     }
@@ -116,16 +162,7 @@ fun DataImportExportScreen(
                 )
             )
         },
-        snackbarHost = {
-            SnackbarHost(hostState = remember { SnackbarHostState() }.apply {
-                showSnackbar?.let {
-                    LaunchedEffect(it) {
-                        showSnackbar(it)
-                        showSnackbar = null
-                    }
-                }
-            })
-        }
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -159,6 +196,21 @@ fun DataImportExportScreen(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
+                    if (isLoading && progress > 0) {
+                        Column {
+                            LinearProgressIndicator(
+                                progress = { progress / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Exporting... $progress%",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    
                     Button(
                         onClick = {
                             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -169,7 +221,7 @@ fun DataImportExportScreen(
                             exportLauncher.launch(intent)
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !isProcessing
+                        enabled = !isLoading
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
@@ -203,6 +255,21 @@ fun DataImportExportScreen(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
+                    if (isLoading && progress > 0) {
+                        Column {
+                            LinearProgressIndicator(
+                                progress = { progress / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Importing... $progress%",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    
                     Button(
                         onClick = {
                             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -212,7 +279,7 @@ fun DataImportExportScreen(
                             importLauncher.launch(intent)
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !isProcessing
+                        enabled = !isLoading
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
@@ -259,34 +326,11 @@ fun DataImportExportScreen(
                             exportSampleLauncher.launch(intent)
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !isProcessing
+                        enabled = !isLoading
                     ) {
-//                        Icon(Icons.Default.SwapHoriz, contentDescription = null)
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Export Sample Data")
-                    }
-                }
-            }
-
-            // Processing indicator
-            if (isProcessing) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text("Processing...")
                     }
                 }
             }
