@@ -16,9 +16,13 @@ import com.google.firebase.firestore.ListenerRegistration
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import android.util.Log
 import javax.inject.Inject
 
 @HiltViewModel
@@ -39,6 +43,23 @@ class DriverReportsViewModel @Inject constructor(
     private val _transactions = MutableStateFlow<List<ParkingTransaction>>(emptyList())
     val transactions: StateFlow<List<ParkingTransaction>> = _transactions.asStateFlow()
 
+    // Summary statistics derived from transactions
+    val totalCharges: StateFlow<Double> = _transactions.map { list ->
+        list.sumOf { it.chargeAmount }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+
+    val averageCharge: StateFlow<Double> = _transactions.map { list ->
+        if (list.isNotEmpty()) list.sumOf { it.chargeAmount } / list.size else 0.0
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+
+    val completedTransactionsCount: StateFlow<Int> = _transactions.map { list ->
+        list.count { it.status == "COMPLETED" }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val activeTransactionsCount: StateFlow<Int> = _transactions.map { list ->
+        list.count { it.status == "ACTIVE" }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -53,71 +74,112 @@ class DriverReportsViewModel @Inject constructor(
 
     private var vehiclesListener: ListenerRegistration? = null
     private var transactionsListener: ListenerRegistration? = null
+    private var hasLoaded = false
 
     init {
-        loadDriverData()
+        // Listen to auth state changes and load data when authenticated
+        viewModelScope.launch {
+            authRepository.getAuthState().collect { isAuthenticated ->
+                if (isAuthenticated && !hasLoaded) {
+                    Log.d("DriverReportsVM", "User authenticated, loading data...")
+                    hasLoaded = true
+                    loadDriverData()
+                } else if (!isAuthenticated) {
+                    Log.d("DriverReportsVM", "User not authenticated")
+                    hasLoaded = false
+                    // Clear data when logged out
+                    _driver.value = null
+                    _vehicles.value = emptyList()
+                    _transactions.value = emptyList()
+                }
+            }
+        }
     }
 
     private fun loadDriverData() {
         viewModelScope.launch {
             _isLoading.value = true
+            _errorMessage.value = null
+            
+            // Small delay to ensure Firebase Auth is fully initialized
+            kotlinx.coroutines.delay(500)
+            
             val userId = authRepository.getCurrentUserId()
             
             if (userId != null) {
+                Log.d("DriverReportsVM", "Loading data for user: $userId")
                 // Load driver info
                 val userResult = authRepository.getUserData(userId)
                 userResult.onSuccess { user ->
                     _driver.value = user
                     setupRealTimeListeners(userId)
                 }.onFailure { error ->
+                    Log.e("DriverReportsVM", "Failed to load driver data: ${error.message}")
                     _errorMessage.value = error.message ?: "Failed to load driver data"
+                    _isLoading.value = false
                 }
             } else {
-                _errorMessage.value = "User not authenticated"
+                Log.e("DriverReportsVM", "User ID is null after auth state said authenticated")
+                // Don't show error immediately, retry once
+                kotlinx.coroutines.delay(1000)
+                val retryUserId = authRepository.getCurrentUserId()
+                if (retryUserId != null) {
+                    loadDriverData()
+                } else {
+                    _errorMessage.value = "User not authenticated. Please login again."
+                    _isLoading.value = false
+                }
             }
-            _isLoading.value = false
         }
     }
 
     private fun setupRealTimeListeners(userId: String) {
-        // Remove existing listeners
-        vehiclesListener?.remove()
-        transactionsListener?.remove()
+        try {
+            // Remove existing listeners
+            vehiclesListener?.remove()
+            transactionsListener?.remove()
 
-        // Set up real-time listener for vehicles
-        vehiclesListener = db.collection("vehicles")
-            .whereEqualTo("ownerId", userId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    _errorMessage.value = error.message ?: "Failed to load vehicles"
-                    return@addSnapshotListener
-                }
-
-                if (snapshot != null) {
-                    val vehiclesList = snapshot.documents.mapNotNull { doc ->
-                        doc.toObject(Vehicle::class.java)?.apply { id = doc.id }
+            // Set up real-time listener for vehicles
+            vehiclesListener = db.collection("vehicles")
+                .whereEqualTo("ownerId", userId)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        _errorMessage.value = error.message ?: "Failed to load vehicles"
+                        _isLoading.value = false
+                        return@addSnapshotListener
                     }
-                    _vehicles.value = vehiclesList
-                }
-            }
 
-        // Set up real-time listener for transactions
-        transactionsListener = db.collection("parking_transactions")
-            .whereEqualTo("ownerId", userId)
-            .orderBy("entryTime")
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    _errorMessage.value = error.message ?: "Failed to load transactions"
-                    return@addSnapshotListener
-                }
-
-                if (snapshot != null) {
-                    val transactionsList = snapshot.documents.mapNotNull { doc ->
-                        doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
+                    if (snapshot != null) {
+                        val vehiclesList = snapshot.documents.mapNotNull { doc ->
+                            doc.toObject(Vehicle::class.java)?.apply { id = doc.id }
+                        }
+                        _vehicles.value = vehiclesList
+                        _isLoading.value = false
                     }
-                    _transactions.value = transactionsList
                 }
-            }
+
+            // Set up real-time listener for transactions (no composite index needed)
+            transactionsListener = db.collection("parking_transactions")
+                .whereEqualTo("ownerId", userId)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        _errorMessage.value = "Failed to load transactions: ${error.message}"
+                        _isLoading.value = false
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshot != null) {
+                        val transactionsList = snapshot.documents.mapNotNull { doc ->
+                            doc.toObject(ParkingTransaction::class.java)?.apply { id = doc.id }
+                        }.sortedByDescending { it.entryTime }
+                        _transactions.value = transactionsList
+                        _isLoading.value = false
+                    }
+                }
+        } catch (e: Exception) {
+            _errorMessage.value = "Error setting up data listeners: ${e.message}"
+            _isLoading.value = false
+        }
     }
 
     fun generatePDFReport(uri: Uri) {
@@ -150,27 +212,6 @@ class DriverReportsViewModel @Inject constructor(
             
             _isGeneratingPDF.value = false
         }
-    }
-
-    fun calculateTotalCharges(): Double {
-        return _transactions.value.sumOf { it.chargeAmount }
-    }
-
-    fun calculateAverageCharge(): Double {
-        val transactions = _transactions.value
-        return if (transactions.isNotEmpty()) {
-            transactions.sumOf { it.chargeAmount } / transactions.size
-        } else {
-            0.0
-        }
-    }
-
-    fun getCompletedTransactionsCount(): Int {
-        return _transactions.value.count { it.status == "COMPLETED" }
-    }
-
-    fun getActiveTransactionsCount(): Int {
-        return _transactions.value.count { it.status == "ACTIVE" }
     }
 
     fun clearError() {
