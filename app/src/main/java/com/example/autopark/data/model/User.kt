@@ -45,25 +45,18 @@ data class User(
     @set:PropertyName("licenseNumber")
     var licenseNumber: String = "",
 
-    @get:PropertyName("licenseExpiry")
+@get:PropertyName("licenseExpiry")
     @set:PropertyName("licenseExpiry")
     var licenseExpiry: Long = 0,
 
-    @get:PropertyName("isVIP")
-    @set:PropertyName("isVIP")
-    var isVIP: Boolean = false,
+    // Additional fields for user details
+    @get:PropertyName("profilePictureUrl")
+    @set:PropertyName("profilePictureUrl")
+    var profilePictureUrl: String? = null,
 
-    @get:PropertyName("totalParkings")
-    @set:PropertyName("totalParkings")
-    var totalParkings: Int = 0,
-
-    @get:PropertyName("totalCharges")
-    @set:PropertyName("totalCharges")
-    var totalCharges: Double = 0.0,
-
-    @get:PropertyName("profileImageUrl")
-    @set:PropertyName("profileImageUrl")
-    var profileImageUrl: String = "",
+    @get:PropertyName("parkingLicenseValid")
+    @set:PropertyName("parkingLicenseValid")
+    var parkingLicenseValid: Boolean = true,
 
     @get:PropertyName("createdAt")
     @set:PropertyName("createdAt")
@@ -73,5 +66,43 @@ data class User(
     @get:PropertyName("updatedAt")
     @set:PropertyName("updatedAt")
     @ServerTimestamp
-    var updatedAt: Date? = null
+    var updatedAt: Date? = null,
+
+    @get:PropertyName("lastLoginAt")
+    @set:PropertyName("lastLoginAt")
+    @ServerTimestamp
+    var lastLoginAt: Date? = null,
+
+    @get:PropertyName("isVIP")
+    @set:PropertyName("isVIP")
+    var isVIP: Boolean = false,
+
+    @get:PropertyName("totalSpent")
+    @set:PropertyName("totalSpent")
+    var totalSpent: Double = 0.0,
+
+    @get:PropertyName("totalParkings")
+    @set:PropertyName("totalParkings")
+    var totalParkings: Int = 0,
+
+    @get:PropertyName("totalCharges")
+    @set:PropertyName("totalCharges")
+    var totalCharges: Double = 0.0,
+
+    @get:PropertyName("loyaltyPoints")
+    @set:PropertyName("loyaltyPoints")
+    var loyaltyPoints: Int = 0,
+
+    // User preferences
+    @get:PropertyName("preferredParkingLot")
+    @set:PropertyName("preferredParkingLot")
+    var preferredParkingLot: String? = null,
+
+    @get:PropertyName("notificationSettings")
+    @set:PropertyName("notificationSettings")
+    var notificationSettings: Map<String, Boolean> = mapOf(
+        "parking_reminders" to true,
+        "payment_reminders" to true,
+        "promotional_notifications" to false
+    )
 )

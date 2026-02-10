@@ -50,12 +50,12 @@ fun DriverDashboardScreen(
             description = "View registered vehicles",
             route = "driver_vehicles"
         ),
-        DashboardItem(
-            title = "Parking QR Code",
-            icon = Icons.Default.ArrowDropDown,
-            description = "Display your parking QR code",
-            route = "driver_qr_display"
-        ),
+//        DashboardItem(
+//            title = "Parking QR Code",
+//            icon = Icons.Default.ArrowDropDown,
+//            description = "Display your parking QR code",
+//            route = "driver_qr_display/"
+//        ),
         DashboardItem(
             title = "Parking History",
             icon = Icons.Default.ArrowDropDown,
@@ -153,13 +153,6 @@ fun DriverDashboardScreen(
                 }
             }
 
-            Text(
-                text = "Your Parking Portal",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            
             Text(
                 text = "Access your parking information and services",
                 style = MaterialTheme.typography.bodyMedium,

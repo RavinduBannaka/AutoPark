@@ -62,6 +62,11 @@ object DateFormatter {
         return (endTime - startTime) / (1000 * 60)
     }
 
+    fun calculateDurationHours(startTime: Long, endTime: Long): Double {
+        val durationMs = endTime - startTime
+        return durationMs.toDouble() / (1000 * 60 * 60)
+    }
+
     fun isToday(timestamp: Long): Boolean {
         val today = Calendar.getInstance()
         val givenDate = Calendar.getInstance()

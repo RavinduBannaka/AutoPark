@@ -15,9 +15,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
-//import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,8 +29,10 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.autopark.data.model.ParkingTransaction
+import com.example.autopark.data.model.ParkingLot
 import com.example.autopark.ui.viewmodel.ParkingTransactionViewModel
-import com.google.mlkit.vision.barcode.BarcodeScanner
+import com.example.autopark.ui.viewmodel.ParkingLotViewModel
+import com.example.autopark.util.CurrencyFormatter
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
@@ -39,11 +41,12 @@ import java.util.concurrent.Executors
 @Composable
 fun QRScannerScreen(
     navController: NavController,
-    viewModel: ParkingTransactionViewModel = hiltViewModel()
+    viewModel: ParkingTransactionViewModel = hiltViewModel(),
+    parkingLotViewModel: ParkingLotViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    
+
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -52,293 +55,258 @@ fun QRScannerScreen(
             ) == PackageManager.PERMISSION_GRANTED
         )
     }
-    
+
+    // Parsed from QR: driver app encodes "vehicleNumber|vehicleId"
     var vehicleNumber by remember { mutableStateOf("") }
-    var showResult by remember { mutableStateOf(false) }
-    var isProcessing by remember { mutableStateOf(false) }
-    var transactionResult by remember { mutableStateOf<Result<ParkingTransaction>?>(null) }
+    var scannedVehicleId by remember { mutableStateOf<String?>(null) }
     var scannedCode by remember { mutableStateOf<String?>(null) }
     var isScanning by remember { mutableStateOf(true) }
-    
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasCameraPermission = granted
+    var isProcessing by remember { mutableStateOf(false) }
+    var showResult by remember { mutableStateOf(false) }
+    var transactionResult by remember { mutableStateOf<Result<ParkingTransaction>?>(null) }
+
+    val parkingLots: List<ParkingLot> by parkingLotViewModel.parkingLots.collectAsState(initial = emptyList())
+    var selectedParkingLot by remember { mutableStateOf<ParkingLot?>(null) }
+    var expandedLotDropdown by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        parkingLotViewModel.loadAllParkingLots()
     }
-    
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> hasCameraPermission = granted }
+
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
-    
-    // Handle scanned QR code
-    LaunchedEffect(scannedCode) {
-        scannedCode?.let { code ->
-            isScanning = false
-            // Parse QR code format: "vehicleNumber|vehicleId"
-            val parts = code.split("|")
-            val extractedVehicleNumber = parts.getOrNull(0) ?: code
-            val extractedVehicleId = parts.getOrNull(1) ?: code
-            vehicleNumber = extractedVehicleNumber
-            
-            // Auto-process as entry if scanning
-            if (extractedVehicleId.isNotBlank()) {
-                isProcessing = true
-                viewModel.processVehicleEntry(extractedVehicleId, extractedVehicleNumber) { result ->
-                    transactionResult = result
-                    showResult = true
-                    isProcessing = false
-                }
-            }
-        }
-    }
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("QR Code Scanner") },
+                title = {
+                    Text(
+                        "QR Scanner",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
         }
-    ) { paddingValues ->
+    ) { padding ->
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
+                .padding(padding)
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+
             if (hasCameraPermission) {
-                // Camera Preview with ML Kit
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .padding(bottom = 16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                        .aspectRatio(1f),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isScanning) {
-                            CameraPreviewWithQRScanner(
-                                onQRCodeScanned = { code ->
-                                    if (scannedCode == null) {
-                                        scannedCode = code
-                                    }
-                                }
+                    if (isScanning) {
+                        CameraPreviewWithQRScanner { code ->
+                            if (scannedCode == null) {
+                                scannedCode = code
+                                // Driver QR format: "vehicleNumber|vehicleId"
+                                val parts = code.split("|").map { it.trim() }
+                                vehicleNumber = parts.getOrNull(0)?.takeIf { it.isNotBlank() } ?: code
+                                scannedVehicleId = parts.getOrNull(1)?.takeIf { it.isNotBlank() }
+                                isScanning = false
+                            }
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(72.dp),
+                                tint = MaterialTheme.colorScheme.primary
                             )
-                            
-                            // Scanning overlay
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(120.dp),
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                )
-                            }
-                        } else {
-                            // Show scanned result preview
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(80.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "QR Code Scanned!",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Vehicle: $vehicleNumber",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            }
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Scanned",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                vehicleNumber,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
 
-                // Manual Entry Section
-                Card(
-                    modifier = Modifier.fillMaxWidth()
+                Spacer(Modifier.height(20.dp))
+
+                // Parking lot dropdown
+                ExposedDropdownMenuBox(
+                    expanded = expandedLotDropdown,
+                    onExpandedChange = { expandedLotDropdown = !expandedLotDropdown }
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
+                    OutlinedTextField(
+                        value = selectedParkingLot?.let { if (it.name.isNotBlank()) it.name else it.id } ?: "Select Parking Lot",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Parking Lot") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expandedLotDropdown)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = expandedLotDropdown,
+                        onDismissRequest = { expandedLotDropdown = false }
                     ) {
-                        Text(
-                            text = "Manual Entry",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Text(
-                            text = "Enter vehicle number manually:",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        OutlinedTextField(
-                            value = vehicleNumber,
-                            onValueChange = { vehicleNumber = it.uppercase() },
-                            label = { Text("Vehicle Number") },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("e.g., ABC123") }
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    if (vehicleNumber.isNotBlank()) {
-                                        isProcessing = true
-                                        viewModel.processVehicleEntryByNumber(vehicleNumber) { result ->
-                                            transactionResult = result
-                                            showResult = true
-                                            isProcessing = false
-                                        }
-                                    }
+                        parkingLots.forEach { lot ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (lot.name.isNotBlank()) lot.name else lot.id
+                                    )
                                 },
-                                modifier = Modifier.weight(1f),
-                                enabled = vehicleNumber.isNotBlank() && !isProcessing
-                            ) {
-                                Text("Process Entry")
-                            }
-                            
-                            Button(
                                 onClick = {
-                                    if (vehicleNumber.isNotBlank()) {
-                                        isProcessing = true
-                                        viewModel.processVehicleExitByNumber(vehicleNumber) { result ->
-                                            transactionResult = result
-                                            showResult = true
-                                            isProcessing = false
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                enabled = vehicleNumber.isNotBlank() && !isProcessing
-                            ) {
-                                Text("Process Exit")
-                            }
-                        }
-                        
-                        if (!isScanning) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    scannedCode = null
-                                    vehicleNumber = ""
-                                    isScanning = true
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Scan Another QR Code")
-                            }
+                                    selectedParkingLot = lot
+                                    expandedLotDropdown = false
+                                }
+                            )
                         }
                     }
                 }
-                
-                // Instructions
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Card(
+
+                Spacer(Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = vehicleNumber,
+                    onValueChange = { vehicleNumber = it.uppercase() },
+                    label = { Text("Vehicle Number") },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(Modifier.height(20.dp))
+
+                // Entry: use vehicleId when available (from QR) for reliable lookup
+                Button(
+                    onClick = {
+                        isProcessing = true
+                        val lotId = selectedParkingLot?.id ?: ""
+                        if (scannedVehicleId != null) {
+                            viewModel.processVehicleEntry(
+                                vehicleId = scannedVehicleId!!,
+                                vehicleNumber = vehicleNumber,
+                                parkingLotId = lotId
+                            ) { result ->
+                                transactionResult = result
+                                showResult = true
+                                isProcessing = false
+                            }
+                        } else {
+                            viewModel.processVehicleEntryByNumber(
+                                vehicleNumber,
+                                lotId
+                            ) { result ->
+                                transactionResult = result
+                                showResult = true
+                                isProcessing = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = vehicleNumber.isNotBlank() && selectedParkingLot != null && !isProcessing,
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Instructions:",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "1. Point camera at QR code to scan automatically\n2. Or enter vehicle number manually\n3. Click 'Process Entry' for vehicle entry\n4. Click 'Process Exit' for vehicle exit",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+                    Text(if (isProcessing) "Processing…" else "Process Entry")
                 }
-            } else {
-                // Permission Denied UI
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+
+                Spacer(Modifier.height(10.dp))
+
+                Button(
+                    onClick = {
+                        isProcessing = true
+                        if (scannedVehicleId != null) {
+                            viewModel.processVehicleExit(scannedVehicleId!!) { result ->
+                                transactionResult = result
+                                showResult = true
+                                isProcessing = false
+                            }
+                        } else {
+                            viewModel.processVehicleExitByNumber(vehicleNumber) { result ->
+                                transactionResult = result
+                                showResult = true
+                                isProcessing = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = vehicleNumber.isNotBlank() && !isProcessing,
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Camera permission required",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Please grant camera permission to scan QR codes",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = {
-                        permissionLauncher.launch(Manifest.permission.CAMERA)
-                    }) {
-                        Text("Grant Permission")
-                    }
+                    Text("Process Exit")
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        isScanning = true
+                        scannedCode = null
+                        scannedVehicleId = null
+                        vehicleNumber = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Scan Another")
                 }
             }
         }
     }
-    
-    // Result Dialog
+
     if (showResult) {
         ScanResultDialog(
             result = transactionResult,
-            onDismiss = { 
+            onDismiss = {
                 showResult = false
-                transactionResult = null
+                isScanning = true
+                scannedCode = null
+                scannedVehicleId = null
+                vehicleNumber = ""
             }
         )
     }
 }
 
+/* ---------------- CAMERA ---------------- */
+
+@androidx.annotation.OptIn(ExperimentalGetImage::class)
 @Composable
 fun CameraPreviewWithQRScanner(
     onQRCodeScanned: (String) -> Unit
@@ -348,132 +316,110 @@ fun CameraPreviewWithQRScanner(
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     val executor = remember { Executors.newSingleThreadExecutor() }
     val barcodeScanner = remember { BarcodeScanning.getClient() }
-    
-    var preview by remember { mutableStateOf<Preview?>(null) }
-    
+
     AndroidView(
         factory = { ctx ->
-            val previewView = PreviewView(ctx).apply {
-                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-            }
-            
+            val previewView = PreviewView(ctx)
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-            
+
             cameraProviderFuture.addListener({
                 val cameraProvider = cameraProviderFuture.get()
-                
-                preview = Preview.Builder()
-                    .build()
-                    .also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
-                    }
-                
-                val imageAnalysis = ImageAnalysis.Builder()
+
+                val preview = Preview.Builder().build().also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
+
+                val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
-                    .also { analysis ->
-                        analysis.setAnalyzer(executor) { imageProxy ->
-                            processImageProxy(
-                                barcodeScanner,
-                                imageProxy,
-                                onQRCodeScanned
-                            )
+                    .also {
+                        it.setAnalyzer(executor) { imageProxy ->
+                            processImageProxy(barcodeScanner, imageProxy, onQRCodeScanned)
                         }
                     }
-                
-                try {
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        cameraSelector,
-                        preview,
-                        imageAnalysis
-                    )
-                } catch (e: Exception) {
-                    Log.e("QRScanner", "Camera binding failed", e)
-                }
+
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    analysis
+                )
             }, ContextCompat.getMainExecutor(ctx))
-            
+
             previewView
         },
         modifier = Modifier.fillMaxSize()
     )
 }
 
+@ExperimentalGetImage
 private fun processImageProxy(
-    barcodeScanner: BarcodeScanner,
+    scanner: com.google.mlkit.vision.barcode.BarcodeScanner,
     imageProxy: ImageProxy,
     onQRCodeScanned: (String) -> Unit
 ) {
-    val mediaImage = imageProxy.image
-    if (mediaImage != null) {
-        val image = InputImage.fromMediaImage(
-            mediaImage,
-            imageProxy.imageInfo.rotationDegrees
-        )
-        
-        barcodeScanner.process(image)
-            .addOnSuccessListener { barcodes ->
-                if (barcodes.isNotEmpty()) {
-                    val barcode = barcodes.first()
-                    barcode.rawValue?.let { value ->
-                        onQRCodeScanned(value)
-                    }
-                }
-            }
-            .addOnFailureListener { e ->
-                Log.e("QRScanner", "Barcode scanning failed", e)
-            }
-            .addOnCompleteListener {
-                imageProxy.close()
-            }
-    } else {
-        imageProxy.close()
-    }
+    val mediaImage = imageProxy.image ?: return imageProxy.close()
+
+    val image = InputImage.fromMediaImage(
+        mediaImage,
+        imageProxy.imageInfo.rotationDegrees
+    )
+
+    scanner.process(image)
+        .addOnSuccessListener { barcodes ->
+            barcodes.firstOrNull()?.rawValue?.let(onQRCodeScanned)
+        }
+        .addOnCompleteListener { imageProxy.close() }
 }
+
+/* ---------------- RESULT DIALOG ---------------- */
 
 @Composable
 fun ScanResultDialog(
     result: Result<ParkingTransaction>?,
     onDismiss: () -> Unit
 ) {
-    val transaction = result?.getOrNull()
+    val tx = result?.getOrNull()
     val error = result?.exceptionOrNull()
-    
+    val success = tx != null
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = if (transaction != null) "Scan Successful" else "Scan Failed",
-                color = if (transaction != null) MaterialTheme.colorScheme.primary 
-                       else MaterialTheme.colorScheme.error
+                if (success) "Success" else "Failed",
+                style = MaterialTheme.typography.titleLarge
             )
         },
         text = {
-            Column {
-                if (transaction != null) {
-                    Text("Vehicle: ${transaction.vehicleNumber}")
-                    Text("Status: ${transaction.status}")
-                    Text("Entry Time: ${formatTimestamp(transaction.entryTime)}")
-                    if (transaction.exitTime != null) {
-                        Text("Exit Time: ${formatTimestamp(transaction.exitTime!!)}")
-                        Text("Duration: ${transaction.duration} minutes")
-                        Text("Charge: $${transaction.chargeAmount}")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (tx != null) {
+                    Text("Vehicle: ${tx.vehicleNumber}", style = MaterialTheme.typography.bodyLarge)
+                    Text("Status: ${tx.status}", style = MaterialTheme.typography.bodyMedium)
+                    if (tx.status == "COMPLETED" && tx.chargeAmount > 0) {
+                        Text(
+                            "Charge: ${CurrencyFormatter.formatCurrency(tx.chargeAmount)}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 } else {
-                    Text(error?.message ?: "Unknown error occurred")
+                    Text(
+                        error?.message ?: "Unknown error",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss) {
+            Button(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(12.dp)
+            ) {
                 Text("OK")
             }
         }
     )
-}
-
-private fun formatTimestamp(timestamp: Long): String {
-    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-    return sdf.format(java.util.Date(timestamp))
 }

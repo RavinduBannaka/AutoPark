@@ -27,8 +27,8 @@ class AuthRepository @Inject constructor(
             val authResult = auth.signInWithEmailAndPassword(email, password).await()
             val firebaseUser = authResult.user
             if (firebaseUser != null) {
-                val userData = getUserData(firebaseUser.uid)
-                Result.success(userData)
+                val userDataResult = getUserData(firebaseUser.uid)
+                userDataResult
             } else {
                 Result.failure(Exception("Login failed"))
             }
@@ -76,9 +76,18 @@ class AuthRepository @Inject constructor(
         auth.signOut()
     }
 
-    suspend fun getUserData(userId: String): User {
-        val document = db.collection("users").document(userId).get().await()
-        return document.toObject(User::class.java) ?: throw Exception("User not found")
+    suspend fun getUserData(userId: String): Result<User> {
+        return try {
+            val document = db.collection("users").document(userId).get().await()
+            val user = document.toObject(User::class.java)
+            if (user != null) {
+                Result.success(user)
+            } else {
+                Result.failure(Exception("User not found"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     fun getAuthState(): Flow<Boolean> = callbackFlow {
@@ -94,7 +103,7 @@ class AuthRepository @Inject constructor(
     suspend fun getCurrentUserData(): User? {
         val userId = auth.currentUser?.uid ?: return null
         return try {
-            getUserData(userId)
+            getUserData(userId).getOrNull()
         } catch (e: Exception) {
             null
         }

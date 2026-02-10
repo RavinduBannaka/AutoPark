@@ -54,4 +54,8 @@ object Constants {
     // Overnight hours
     const val OVERNIGHT_START_HOUR = 20 // 8 PM
     const val OVERNIGHT_END_HOUR = 8   // 8 AM
+    
+    // Invoice settings
+    const val INVOICE_DUE_DAYS = 15
+    const val OVERDUE_CHARGE_DAYS = 7
 }

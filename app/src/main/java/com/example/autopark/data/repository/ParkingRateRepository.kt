@@ -106,21 +106,7 @@ class ParkingRateRepository @Inject constructor(
         }
     }
 
-    suspend fun getRateByType(parkingLotId: String, rateType: String): Result<ParkingRate?> {
-        return try {
-            val docs = db.collection("parking_rates")
-                .whereEqualTo("parkingLotId", parkingLotId)
-                .whereEqualTo("rateType", rateType)
-                .get()
-                .await()
-            val rate = docs.documents.mapNotNull { doc ->
-                doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
-            }.firstOrNull()
-            Result.success(rate)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    
 
     suspend fun getAllParkingRates(): Result<List<ParkingRate>> {
         return try {
@@ -129,6 +115,23 @@ class ParkingRateRepository @Inject constructor(
                 doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
             }
             Result.success(rates)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getRateByType(parkingLotId: String, rateType: String): Result<ParkingRate?> {
+        return try {
+            val docs = db.collection("parking_rates")
+                .whereEqualTo("parkingLotId", parkingLotId)
+                .whereEqualTo("rateType", rateType)
+                .whereEqualTo("isActive", true)
+                .get()
+                .await()
+            val rate = docs.documents.mapNotNull { doc ->
+                doc.toObject(ParkingRate::class.java)?.apply { id = doc.id }
+            }.firstOrNull()
+            Result.success(rate)
         } catch (e: Exception) {
             Result.failure(e)
         }

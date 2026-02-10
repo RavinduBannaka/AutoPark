@@ -15,7 +15,8 @@ import javax.inject.Inject
 @HiltViewModel
 class InvoiceViewModel @Inject constructor(
     private val invoiceRepository: InvoiceRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val invoiceGenerationService: com.example.autopark.data.repository.InvoiceGenerationService
 ) : ViewModel() {
 
     private val _invoices = MutableStateFlow<List<Invoice>>(emptyList())
@@ -105,5 +106,67 @@ class InvoiceViewModel @Inject constructor(
 
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    /**
+     * Generate monthly invoice for current user
+     */
+    fun generateMonthlyInvoice(month: Int, year: Int) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val userId = authRepository.getCurrentUserId()
+            if (userId != null) {
+                val result = invoiceGenerationService.generateUserMonthlyInvoice(userId, month, year)
+                result.onSuccess { invoice ->
+                    loadOwnerInvoices()
+                    _selectedInvoice.value = invoice
+                    _errorMessage.value = null
+                }.onFailure { error ->
+                    _errorMessage.value = error.message ?: "Failed to generate invoice"
+                }
+            } else {
+                _errorMessage.value = "User not authenticated"
+            }
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Generate current month invoice
+     */
+    fun generateCurrentMonthInvoice() {
+        val (month, year) = com.example.autopark.util.DateFormatter.getMonthAndYear()
+        generateMonthlyInvoice(month, year)
+    }
+
+    /**
+     * Pay invoice (mark as paid)
+     */
+    fun markInvoiceAsPaid(invoice: Invoice, paymentAmount: Double) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val updatedInvoice = invoice.copy(
+                paymentStatus = "PAID",
+                paymentDate = System.currentTimeMillis(),
+                amountPaid = paymentAmount
+            )
+            
+            val result = invoiceRepository.updateInvoice(updatedInvoice)
+            result.onSuccess {
+                loadOwnerInvoices()
+                loadPendingInvoices()
+                _errorMessage.value = null
+            }.onFailure { error ->
+                _errorMessage.value = error.message ?: "Failed to update invoice"
+            }
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Get pending amount for user
+     */
+    fun getTotalPendingAmount(): Double {
+        return _pendingInvoices.value.sumOf { it.totalAmount - it.amountPaid }
     }
 }
